@@ -4,3 +4,7 @@
 .*.swp
 .*.swo
 
+# Ignore tmp folders:
+doc/
+coverage/
+

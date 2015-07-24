@@ -14,6 +14,3 @@ PLATFORMS
 
 DEPENDENCIES
   simplecov (~> 0.9)
-
-BUNDLED WITH
-   1.10.5

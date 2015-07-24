@@ -1,21 +1,70 @@
 #!/usr/bin/env ruby
+# zsnap.rb - automatic and simple snapshot tool for ZFS on Linux.
+# Copyright (C) 2015 Wolfgang Holoch <wolfgang.holoch@gmail.com>
+# See LICENSE.md file for licensing information.
+#
+# This script creates ZFS snapshots and deletes snapshots older than a user
+# defined period. This script was only tested with ZFS on Linux. For further
+# information, please read the file README.md.
 
 require "date"
 require "logger"
 require "optparse"
 
-
+# The logger which is used throughout this project.
 LOG = Logger.new STDOUT
+# Default log level.
 LOG.level = Logger::WARN
 
+#
+# == Description
+#
+# The ZSnap module contains all classes and methods of this project.
+#
 module ZSnap
   
+  #
+  # == Description
+  #
+  # This class represents a ZFS snapshot.
+  #
   class Snapshot
 
+    # The date format which is used to name all snapshots created by this
+    # script.
     DATE_FORMAT = "zsnap_%F_%T_%:z"
 
-    attr_reader :volume, :time
+    # The corresponding Volume of this snapshot.
+    # Returns a Volume object.
+    attr_reader :volume
+    # The time at wich this snapshot was created.
+    # Returns a Time object.
+    attr_reader :time
 
+    #
+    # === Description
+    #
+    # Create an instance.
+    #
+    # === Args
+    #
+    # [+opts+]
+    #   Option hash.
+    #
+    # +opts+ accepts the following symbols to initialize a Snapshot object:
+    #
+    # [+:volume+]
+    #   The Volume object to which this snapshots belongs.
+    # [+:time+]
+    #   The time (as Time object) when this snapshot was created
+    #   (default = Time.now).
+    # [+:name+]
+    #   The name of the snapshot, in the following form:
+    #   "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    #
+    # A new instance can be created by supplying either volume and time, or the
+    # name.
+    #
     def initialize(opts = {})
       # Default arguments:
       opts = {volume: nil, name: nil, time: Time.now}.merge opts
@@ -31,10 +80,27 @@ module ZSnap
       raise StandardError, "Undefined time." if @time.nil?
     end
 
+    #
+    # === Description
+    #
+    # Return the name of this Snapshot. The name is in the form:
+    # "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    #
     def name
       return "#{@volume.name}@#{@time.strftime DATE_FORMAT}"
     end
 
+    #
+    # === Description
+    #
+    # Set the state of the snapshot by supplying a name.
+    #
+    # === Args
+    #
+    # [+value+]
+    #   The name of the Snapshot as string, in the form:
+    #   "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    #
     def name=(value)
       v_name = value.split("@").first
       @volume = Volume.all.find{|v| v.name == v_name}
@@ -42,16 +108,35 @@ module ZSnap
       @time = DateTime.strptime(value.split("@")[1], DATE_FORMAT).to_time
     end
 
+    #
+    # === Description
+    #
+    # Destroy this Snapshot.
+    #
+    # *ATTENTION*: This method deletes the snapshot from disk. This is
+    # irreversible!
+    #
     def destroy
       ZSnap.execute "zfs", "destroy", name
       LOG.info "Destroyed snapshot '#{name}'."
     end
   end
 
+  #
+  # == Description
+  #
+  # This class represents a ZFS Volume.
+  #
   class Volume
 
+    # The name of the Volume as string.
     attr_accessor :name
 
+    #
+    # === Description
+    #
+    # Create a new Snapshot on this Volume.
+    #
     def create_snapshot
       ss = Snapshot.new volume: self
       ZSnap.execute "zfs", "snapshot", ss.name
@@ -59,6 +144,12 @@ module ZSnap
       return ss
     end
 
+    #
+    # === Description
+    #
+    # Returns all Snapshots for this Volume in an Array. Only Snapshots created
+    # by this script will be returned, all other snapshots will be ignored.
+    #
     def snapshots
       result = []
       # Get all snapshots
@@ -78,6 +169,11 @@ module ZSnap
       return result
     end
 
+    #
+    # === Description
+    #
+    # Return all Volume objects in an Array.
+    #
     def self.all
       if not defined?(@@all) or @@all.nil?
         @@all = []
@@ -91,6 +187,18 @@ module ZSnap
       return @@all
     end
 
+    #
+    # === Description
+    #
+    # Find Volume objects by name.
+    #
+    # Returns an array of all Volumes object, which match the specified names.
+    #
+    # === Args
+    #
+    # [+names+]
+    #   The names (as string) of the Volumes which should be found.
+    #
     def self.find_by_names(*names)
       result = []
       names.each do |vs|
@@ -102,6 +210,29 @@ module ZSnap
     end
   end
 
+  #
+  # === Description
+  #
+  # Calculate the date for which all older snapshots should be deleted.
+  #
+  # This method takes all arguments and calculates the date in the past, for
+  # which all older snapshots should be deleted.
+  #
+  # The calculated date is returned as Time object.
+  #
+  # === Args
+  #
+  # [+months+]
+  #   The number of months (must be >= 0).
+  # [+weeks+]
+  #   The number of weeks (must be >= 0).
+  # [+days+]
+  #   The number of days (must be >= 0).
+  # [+hours+]
+  #   The number of hours (must be >= 0).
+  # [+minutes+]
+  #   The number of minutes (must be >= 0).
+  #
   def self.calc_destroy_date(months, weeks, days, hours, minutes)
     # Check all arguments >= 0
     method(__method__).parameters.map{|arg| [arg[1].to_s, (eval arg[1].to_s)]}.each do |var, val|
@@ -117,6 +248,23 @@ module ZSnap
     return result
   end
 
+  #
+  # === Description
+  #
+  # Execute a command in a shell.
+  #
+  # This method executes the given command in a shell and returns the shell
+  # output as string.
+  #
+  # === Args
+  #
+  # [+args+]
+  #   The command and all arguments which should be execute in a shell.
+  #
+  # === Example
+  #
+  #   ZSnap.execute("echo", "Hello World.")
+  #
   def self.execute(*args)
     output = ""
     begin
@@ -133,6 +281,33 @@ module ZSnap
     return output
   end
 
+  #
+  # === Description
+  #
+  # Parse commandline arguments.
+  #
+  # Returns a hash with the following values:
+  #
+  # [+create+]
+  #   This value is true if the "-c" flag was specified on the commandline,
+  #   otherwise false.
+  # [+minutes+]
+  #   The value of the "-M" flag. This is always an integer >= 0 (default = 0).
+  # [+hours+]
+  #   The value of the "-H" flag. This is always an integer >= 0 (default = 0).
+  # [+days+]
+  #   The value of the "-d" flag. This is always an integer >= 0 (default = 0).
+  # [+weeks+]
+  #   The value of the "-w" flag. This is always an integer >= 0 (default = 0).
+  # [+months+]
+  #   The value of the "-m" flag. This is always an integer >= 0 (default = 0).
+  # [+help+]
+  #   This value is true if the help text was printed while parsing the
+  #   commandline arguments, either because the "-h" flag was used or because
+  #   an error occurred.
+  # [+volumes+]
+  #   An array of the names of all specified Volumes (default = []).
+  #
   def self.get_options
     # Default values for command line arguments:
     options = {create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []}
@@ -218,6 +393,11 @@ module ZSnap
     return options
   end
 
+  #
+  # === Description
+  #
+  # The entrypoint of this script.
+  #
   def self.main
     begin
       # Get cmdline options.
@@ -248,5 +428,6 @@ module ZSnap
 end
 
 
+# Call ZSnap.main if this script was called directly.
 ZSnap.main if __FILE__ == $0
 

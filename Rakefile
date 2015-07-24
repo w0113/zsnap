@@ -1,4 +1,3 @@
-require "minitest/unit"
 require "rdoc/rdoc"
 
 
@@ -33,7 +32,7 @@ namespace :rdoc do
   desc "Remove all RDoc documentation files."
   task :clean do
     rm_r DIR_RDOC if File.directory? DIR_RDOC
-    rm Dir.glob("#{DIR_SRC}/**/*_rb.html")
+    #rm Dir.glob("#{DIR_SRC}/**/*_rb.html")
   end
 
   task :default do
