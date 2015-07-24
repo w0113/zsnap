@@ -1,0 +1,6 @@
+
+# Ignore backup files:
+*~
+.*.swp
+.*.swo
+
