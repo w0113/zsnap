@@ -7,9 +7,9 @@
 # defined period. This script was only tested with ZFS on Linux. For further
 # information, please read the file README.md.
 
-require "date"
 require "logger"
 require "optparse"
+require "time"
 
 # The logger which is used throughout this project.
 LOG = Logger.new STDOUT
@@ -32,7 +32,7 @@ module ZSnap
 
     # The date format which is used to name all snapshots created by this
     # script.
-    DATE_FORMAT = "zsnap_%F_%T_%:z"
+    DATE_FORMAT = "zsnap_%F_%T"
 
     # The corresponding Volume of this snapshot.
     # Returns a Volume object.
@@ -57,7 +57,7 @@ module ZSnap
     #   The Volume object to which this snapshots belongs.
     # [+:time+]
     #   The time (as Time object) when this snapshot was created
-    #   (default = Time.now).
+    #   (default = Time.now.utc).
     # [+:name+]
     #   The name of the snapshot, in the following form:
     #   "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
@@ -67,7 +67,7 @@ module ZSnap
     #
     def initialize(opts = {})
       # Default arguments:
-      opts = {volume: nil, name: nil, time: Time.now}.merge opts
+      opts = {volume: nil, name: nil, time: Time.now.utc}.merge opts
 
       unless opts[:volume].nil?
         @volume = opts[:volume]
@@ -105,7 +105,9 @@ module ZSnap
       v_name = value.split("@").first
       @volume = Volume.all.find{|v| v.name == v_name}
       raise StandardError, "No matching volume found." if @volume.nil?
-      @time = DateTime.strptime(value.split("@")[1], DATE_FORMAT).to_time
+      # Parse time and convert it into UTC.
+      tt = Time.strptime(value.split("@")[1], DATE_FORMAT)
+      @time = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min, tt.sec)
     end
 
     #
@@ -240,7 +242,18 @@ module ZSnap
     end
 
     # Calculate destroy date.
-    result = (DateTime.now << months).to_time
+    result = Time.now.utc
+    # Subtract number of months.
+    if months > 0
+      nm = (result.month - months - 1) % 12 + 1
+      ny = result.year + ((result.month - months - 1) / 12)
+      result = result.to_a
+      result[4] = nm
+      result[5] = ny
+      result = Time.utc *result
+    end
+      
+    # Subtract weeks, days, hours and minutes.
     result -= weeks * 7 * 24 * 60 * 60
     result -= days * 24 * 60 * 60
     result -= hours * 60 * 60

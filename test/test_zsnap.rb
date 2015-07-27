@@ -9,25 +9,25 @@ describe "ZSnap::Snapshot" do
     v = ZSnap::Volume.new
     v.name = "pool"
     
-    t1 = Time.new(2003, 2, 1, 4, 5, 6, "+01:00")
-    t2 = Time.new(1337, 2, 1, 4, 5, 6, "+01:00")
-    t3 = Time.new(1970, 2, 1, 4, 5, 6, "+01:00")
+    t1 = Time.utc(2003, 2, 1, 4, 5, 6)
+    t2 = Time.utc(1337, 2, 1, 4, 5, 6)
+    t3 = Time.utc(1970, 2, 1, 4, 5, 6)
     Time.stub(:now, t1) do
       proc {ZSnap::Snapshot.new}.must_raise StandardError
       proc {ZSnap::Snapshot.new time: t2}.must_raise StandardError
 
       s = ZSnap::Snapshot.new volume: v
       s.volume.must_equal v
-      s.name.must_equal "#{v.name}@zsnap_2003-02-01_04:05:06_#{t1.strftime "%:z"}"
+      s.name.must_equal "#{v.name}@zsnap_2003-02-01_04:05:06"
       s.time.must_equal t1
 
       s = ZSnap::Snapshot.new volume: v, time: t2
       s.volume.must_equal v
-      s.name.must_equal "#{v.name}@zsnap_1337-02-01_04:05:06_#{t2.strftime "%:z"}"
+      s.name.must_equal "#{v.name}@zsnap_1337-02-01_04:05:06"
       s.time.must_equal t2
 
       ZSnap::Volume.stub(:all, [v]) do
-        name = "#{v.name}@zsnap_1970-02-01_04:05:06_#{t3.strftime "%:z"}"
+        name = "#{v.name}@zsnap_1970-02-01_04:05:06"
 
         s = ZSnap::Snapshot.new name: name
         s.volume.must_equal v
@@ -46,14 +46,13 @@ describe "ZSnap::Snapshot" do
     v = ZSnap::Volume.new
     v.name = "pool"
     
-    name = "#{v.name}@zsnap_1970-02-01_04:05:06_+01:00"
+    name = "#{v.name}@zsnap_1970-02-01_04:05:06"
 
-    t1 = Time.new(2003, 2, 1, 4, 5, 6, "+01:00")
-    t2 = Time.new(1970, 2, 1, 4, 5, 6, "+01:00")
+    t1 = Time.utc(2003, 2, 1, 4, 5, 6)
     Time.stub(:now, t1) do
       ZSnap::Volume.stub(:all, [v]) do
         s = ZSnap::Snapshot.new volume: v
-        s.name.must_equal "#{v.name}@zsnap_2003-02-01_04:05:06_+01:00"
+        s.name.must_equal "#{v.name}@zsnap_2003-02-01_04:05:06"
         s.name = name
         s.name.must_equal name
 
@@ -66,7 +65,7 @@ describe "ZSnap::Snapshot" do
   it "must destroy snapshots" do
     v = ZSnap::Volume.new
     v.name = "pool"
-    t1 = Time.new(2003, 2, 1, 4, 5, 6, "+01:00")
+    t1 = Time.utc(2003, 2, 1, 4, 5, 6)
     
     s = ZSnap::Snapshot.new volume: v, time: t1
 
@@ -86,7 +85,7 @@ describe "ZSnap::Volume" do
     v = ZSnap::Volume.new
     v.name = "pool"
 
-    t1 = Time.new(2003, 2, 1, 4, 5, 6, "+01:00")
+    t1 = Time.utc(2003, 2, 1, 4, 5, 6)
 
     mock = MiniTest::Mock.new
     mock.expect :call, "", ["zfs", "snapshot", ZSnap::Snapshot.new(volume: v, time: t1).name]
@@ -105,7 +104,7 @@ describe "ZSnap::Volume" do
     volumes[0].name, volumes[1].name, volumes[2].name = "green", "red", "blue"
 
     time = []
-    20.times{|i| time << Time.new(2000, 6, 5 + i, 6, 10, 0, "+01:00")}
+    20.times{|i| time << Time.utc(2000, 6, 5 + i, 6, 10, 0)}
 
     exec_output = ""
     time.each do |t|
@@ -163,22 +162,36 @@ end
 describe "ZSnap" do
 
   it "must calculate destroy date" do
-    start_date = DateTime.new 2010, 6, 15, 12, 30, 0, "+01:00"
+    start_date = Time.utc 2010, 6, 15, 12, 30, 0
 
-    DateTime.stub(:now, start_date) do
-      ZSnap.calc_destroy_date(0, 0, 0, 0, 0).must_equal Time.new(2010, 6, 15, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 0, 0, 1).must_equal Time.new(2010, 6, 15, 12, 29, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 0, 0, 121).must_equal Time.new(2010, 6, 15, 10, 29, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 0, 1, 0).must_equal Time.new(2010, 6, 15, 11, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 0, 49, 0).must_equal Time.new(2010, 6, 13, 11, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 1, 0, 0).must_equal Time.new(2010, 6, 14, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 0, 15, 0, 0).must_equal Time.new(2010, 5, 31, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 1, 0, 0, 0).must_equal Time.new(2010, 6, 8, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(0, 6, 0, 0, 0).must_equal Time.new(2010, 5, 4, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(1, 0, 0, 0, 0).must_equal Time.new(2010, 5, 15, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(13, 0, 0, 0, 0).must_equal Time.new(2009, 5, 15, 12, 30, 0, "+01:00")
-      ZSnap.calc_destroy_date(1, 1, 1, 1, 1).must_equal Time.new(2010, 5, 7, 11, 29, 0, "+01:00")
-      ZSnap.calc_destroy_date(2, 3, 4, 5, 6).must_equal Time.new(2010, 3, 21, 7, 24, 0, "+01:00")
+    Time.stub(:now, start_date) do
+      ZSnap.calc_destroy_date(0, 0, 0, 0, 0).must_equal Time.utc(2010, 6, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(0, 0, 0, 0, 1).must_equal Time.utc(2010, 6, 15, 12, 29, 0)
+      ZSnap.calc_destroy_date(0, 0, 0, 0, 121).must_equal Time.utc(2010, 6, 15, 10, 29, 0)
+      ZSnap.calc_destroy_date(0, 0, 0, 1, 0).must_equal Time.utc(2010, 6, 15, 11, 30, 0)
+      ZSnap.calc_destroy_date(0, 0, 0, 49, 0).must_equal Time.utc(2010, 6, 13, 11, 30, 0)
+      ZSnap.calc_destroy_date(0, 0, 1, 0, 0).must_equal Time.utc(2010, 6, 14, 12, 30, 0)
+      ZSnap.calc_destroy_date(0, 0, 15, 0, 0).must_equal Time.utc(2010, 5, 31, 12, 30, 0)
+      ZSnap.calc_destroy_date(0, 1, 0, 0, 0).must_equal Time.utc(2010, 6, 8, 12, 30, 0)
+      ZSnap.calc_destroy_date(0, 6, 0, 0, 0).must_equal Time.utc(2010, 5, 4, 12, 30, 0)
+      ZSnap.calc_destroy_date(1, 0, 0, 0, 0).must_equal Time.utc(2010, 5, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(2, 0, 0, 0, 0).must_equal Time.utc(2010, 4, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(3, 0, 0, 0, 0).must_equal Time.utc(2010, 3, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(4, 0, 0, 0, 0).must_equal Time.utc(2010, 2, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(5, 0, 0, 0, 0).must_equal Time.utc(2010, 1, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(6, 0, 0, 0, 0).must_equal Time.utc(2009, 12, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(7, 0, 0, 0, 0).must_equal Time.utc(2009, 11, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(8, 0, 0, 0, 0).must_equal Time.utc(2009, 10, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(9, 0, 0, 0, 0).must_equal Time.utc(2009, 9, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(10, 0, 0, 0, 0).must_equal Time.utc(2009, 8, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(11, 0, 0, 0, 0).must_equal Time.utc(2009, 7, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(12, 0, 0, 0, 0).must_equal Time.utc(2009, 6, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(13, 0, 0, 0, 0).must_equal Time.utc(2009, 5, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(23, 0, 0, 0, 0).must_equal Time.utc(2008, 7, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(24, 0, 0, 0, 0).must_equal Time.utc(2008, 6, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(25, 0, 0, 0, 0).must_equal Time.utc(2008, 5, 15, 12, 30, 0)
+      ZSnap.calc_destroy_date(1, 1, 1, 1, 1).must_equal Time.utc(2010, 5, 7, 11, 29, 0)
+      ZSnap.calc_destroy_date(2, 3, 4, 5, 6).must_equal Time.utc(2010, 3, 21, 7, 24, 0)
       proc {ZSnap.calc_destroy_date(0, 0, 0, 0, -1)}.must_raise StandardError
       proc {ZSnap.calc_destroy_date(0, 0, 0, -1, 0)}.must_raise StandardError
       proc {ZSnap.calc_destroy_date(0, 0, -1, 0, 0)}.must_raise StandardError
@@ -249,7 +262,7 @@ describe "ZSnap" do
 
   it "must process comandline arguments and take actions accordingly" do
     # Start date for testing.
-    ct = Time.new(2000, 10, 30, 1, 2, 0, "+01:00")
+    ct = Time.utc(2000, 10, 30, 1, 2, 0)
 
     # MiniTest::Mock got its instance_variable_set method deleted.
     # We need a smale replacement.
@@ -271,7 +284,7 @@ describe "ZSnap" do
         # Mock Snapshot objects for volume.
         ss = []
         20.times do |i|
-          ms_time = Time.new(ct.year, ct.month, ct.day - i, ct.hour, ct.min, ct.sec, ct.utc_offset)
+          ms_time = Time.utc(ct.year, ct.month, ct.day - i, ct.hour, ct.min, ct.sec)
           ms = MiniTest::Mock.new
           ms.instance_variable_set :@volume, mv
           def ms.volume; return @volume; end
@@ -289,7 +302,7 @@ describe "ZSnap" do
 
     # Helper function to test ZSnap.main:
     test_main = lambda do |opts, *vs_opts|
-      DateTime.stub(:now, ct.to_datetime) do
+      Time.stub(:now, ct) do
         vs = create_volumes[*vs_opts]
         ZSnap::Volume.stub(:all, vs) do
           ZSnap.stub(:get_options, opts) do
