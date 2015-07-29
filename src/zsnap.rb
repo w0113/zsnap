@@ -369,8 +369,7 @@ module ZSnap
       opts.on("-m", "--months [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of months,",
               "for all specified VOLUME(s).", &handler_int.curry[:months])
       opts.on("-h", "--help", "Show this message."){|v| options[:help] = v; puts opts.help}
-      opts.on("-v", "Be verbose."){|v| LOG.level = Logger::INFO if v}
-      opts.on("-vv", "Be even more verbose."){|v| LOG.level = Logger::DEBUG if v}
+      opts.on("-v", "Be verbose."){|v| LOG.level = Logger::DEBUG if v}
       opts.separator ""
       opts.separator "Examples:"
       opts.separator ""
