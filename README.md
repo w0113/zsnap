@@ -64,7 +64,7 @@ ZSnap is written in Ruby and therefore needs a Ruby interepreter to run. To inst
 
     apt-get install ruby
 
-After installing the interpreter check the installed version with `ruby -v`, you need at least Ruby 1.9.3 for ZSnap to run. ZSnap was tested with Ruby versions 1.9.3, 2.1.5 and 2.2.2, but should work with every version >=1.9.3.
+After installing the interpreter, check the installed version with `ruby -v`. At least Ruby version 1.9.3 is needed for ZSnap to run. ZSnap was tested with Ruby versions 1.9.3, 2.1.5 and 2.2.2, but should work with every version >=1.9.3.
 
 To run ZSnap only the file 'zsnap.rb' from the foulder 'src' is needed, but it is recommended to clone the whole project and create a link to the 'zsnap.rb' script, e. g. type as root:
 
