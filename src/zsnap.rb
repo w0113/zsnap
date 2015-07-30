@@ -156,6 +156,9 @@ module ZSnap
       result = []
       # Get all snapshots
       snapshots = ZSnap.execute("zfs", "list", "-Hpt", "snapshot").lines
+      #   1.9.3: String#lines -> Enumerator
+      # >=2.0.0: String#lines -> Array
+      snapshots = snapshots.to_a if snapshots.is_a? Enumerator
       # Only keep snapshots of this volume.
       snapshots.select!{|ss| ss.start_with? "#{@name}@"}
       # Create Snapshot object for each line.

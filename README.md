@@ -60,13 +60,15 @@ ZSnap is able to create new snapshots on a set of ZFS volumes and to delete old 
 
 ## Installation
 
-ZSnap is written in Ruby and therefore needs a Ruby interepreter to run. To install a ruby interpreter on a Debian based system, this is usually done by issuing the following command as root:
+ZSnap is written in Ruby and therefore needs a Ruby interepreter to run. To install the interpreter on a Debian based system, issue the following command as root:
 
     apt-get install ruby
 
+After installing the interpreter check the installed version with `ruby -v`, you need at least Ruby 1.9.3 for ZSnap to run. ZSnap was tested with Ruby versions 1.9.3, 2.1.5 and 2.2.2, but should work with every version >=1.9.3.
+
 To run ZSnap only the file 'zsnap.rb' from the foulder 'src' is needed, but it is recommended to clone the whole project and create a link to the 'zsnap.rb' script, e. g. type as root:
 
-    git clone https://github.com/w0113/zsnap.git /usr/local/src/
+    git clone https://github.com/w0113/zsnap.git /usr/local/src/zsnap
     ln -s /usr/local/src/zsnap/src/zsnap.rb /usr/local/sbin/zsnap
 
 Afterwards it should be possible as user root to execute ZSnap by simple typing `zsnap`. To get further help use the `zsnap -h` command.
@@ -74,5 +76,5 @@ Afterwards it should be possible as user root to execute ZSnap by simple typing 
 
 ## License
 
-ZSnap is released under the [MIT License](https://tldrlegal.com/license/mit-license).
+ZSnap is released under the terms and conditions of the [MIT License](https://tldrlegal.com/license/mit-license).
 
