@@ -245,11 +245,23 @@ module ZSnap
     result = Time.now.utc
     # Subtract number of months.
     if months > 0
+      # Calculate new month.
       nm = (result.month - months - 1) % 12 + 1
+      # Calculate new year.
       ny = result.year + ((result.month - months - 1) / 12)
+      # Split result date into its parts.
       result = result.to_a
+      # Set new month and year.
       result[4] = nm
       result[5] = ny
+      
+      # In some cases it is possible that the calculated date is not valid,
+      # e. g. when subtracting one month from 2015-03-31, which would result in
+      # the date 2015-02-31. Furthermore Time.utc accepts those values but
+      # creates the date 2015-03-03. To comprehend this effect it is necessary
+      # to reduce the days until we are at the last day of this month.
+      result[3] -= 1 until Time.utc(*result).month == result[4]
+      # Create a new Time object from the calculated date.
       result = Time.utc *result
     end
       

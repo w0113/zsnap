@@ -163,7 +163,6 @@ describe "ZSnap" do
 
   it "must calculate destroy date" do
     start_date = Time.utc 2010, 6, 15, 12, 30, 0
-
     Time.stub(:now, start_date) do
       ZSnap.calc_destroy_date(0, 0, 0, 0, 0).must_equal Time.utc(2010, 6, 15, 12, 30, 0)
       ZSnap.calc_destroy_date(0, 0, 0, 0, 1).must_equal Time.utc(2010, 6, 15, 12, 29, 0)
@@ -197,6 +196,14 @@ describe "ZSnap" do
       proc {ZSnap.calc_destroy_date(0, 0, -1, 0, 0)}.must_raise StandardError
       proc {ZSnap.calc_destroy_date(0, -1, 0, 0, 0)}.must_raise StandardError
       proc {ZSnap.calc_destroy_date(-1, 0, 0, 0, 0)}.must_raise StandardError
+    end
+
+    start_date = Time.utc 2010, 3, 31, 12, 30, 0
+    Time.stub(:now, start_date) do
+      ZSnap.calc_destroy_date(1, 0, 0, 0, 0).must_equal Time.utc(2010, 2, 28, 12, 30, 0)
+      ZSnap.calc_destroy_date(2, 0, 0, 0, 0).must_equal Time.utc(2010, 1, 31, 12, 30, 0)
+      ZSnap.calc_destroy_date(3, 0, 0, 0, 0).must_equal Time.utc(2009, 12, 31, 12, 30, 0)
+      ZSnap.calc_destroy_date(4, 0, 0, 0, 0).must_equal Time.utc(2009, 11, 30, 12, 30, 0)
     end
   end
 
