@@ -30,16 +30,28 @@ module ZSnap
   #
   class Snapshot
 
-    # The date format which is used to name all snapshots created by this
-    # script.
-    DATE_FORMAT = "zsnap_%F_%T"
+    # The allowed family name format as part of the snapshot name.
+    FAMILY_FORMAT = /^[-a-zA-Z0-9]+$/
+    # The allowed date format as part of the snapshot name.
+    DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/
+    # The allowed hour format as part of the snapshot name.
+    HOUR_FORMAT = /^\d{2}:\d{2}$/
+    # The allowed timezone format as part of the snapshot name.
+    ZONE_FORMAT = /^-?\d{4}$/
 
-    # The corresponding Volume of this snapshot.
-    # Returns a Volume object.
-    attr_reader :volume
+    MASK_OLD_1 = ["zsnap", DATE_FORMAT, /^\d{2}:\d{2}:\d{2}$/]
+    MASK_V_1   = ["zsnap", DATE_FORMAT, HOUR_FORMAT, ZONE_FORMAT]
+    MASK_V_2   = ["zsnap", FAMILY_FORMAT, DATE_FORMAT, HOUR_FORMAT, ZONE_FORMAT]
+
+    # The family name of snapshots, this snapshot belongs to.
+    # Returns a String object.
+    attr_reader :family
     # The time at wich this snapshot was created.
     # Returns a Time object.
     attr_reader :time
+    # The corresponding Volume of this snapshot.
+    # Returns a Volume object.
+    attr_reader :volume
 
     #
     # === Description
@@ -53,61 +65,119 @@ module ZSnap
     #
     # +opts+ accepts the following symbols to initialize a Snapshot object:
     #
+    # [+:name+]
+    #   The name of the snapshot. See documentation of the method #name= for further information.
     # [+:volume+]
     #   The Volume object to which this snapshots belongs.
+    # [+:family+]
+    #   The family name of this snapshot as a String object (default = nil = default family).
     # [+:time+]
-    #   The time (as Time object) when this snapshot was created
-    #   (default = Time.now.utc).
-    # [+:name+]
-    #   The name of the snapshot, in the following form:
-    #   "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    #   The time (as Time object) when this snapshot was created (default = Time.now).
     #
-    # A new instance can be created by supplying either volume and time, or the
-    # name.
+    # A new instance can be created by supplying either volume, family and time, or the name parameter.
     #
     def initialize(opts = {})
       # Default arguments:
-      opts = {volume: nil, name: nil, time: Time.now.utc}.merge opts
+      opts = {volume: nil, name: nil, family: nil, time: Time.now}.merge opts
 
-      unless opts[:volume].nil?
-        @volume = opts[:volume]
-        @time = opts[:time]
+      # Set family to given parameter if it consists only of the allowed characters.
+      if opts[:family].nil? or opts[:family] =~ FAMILY_FORMAT
+        @family = opts[:family]
+      else
+        raise StandardError, "The family name must only contain alphabetic, numeric or the minus character."
       end
-      
-      self.name = opts[:name] unless opts[:name].nil?
 
+      if opts[:name]
+        # Set the attributes by the given name.
+        self.name = opts[:name]
+      elsif opts[:volume]
+        # Set the attributes by the given parameters.
+        @volume = opts[:volume]
+        # Set the time and make sure that it is in the local timezone.
+        @time = opts[:time].utc? ? opts[:time].localtime : opts[:time]
+        # Zero out the seconds of time.
+        @time = Time.new @time.year, @time.month, @time.day, @time.hour, @time.min, 0, @time.utc_offset
+
+        # Set the name of this snapshot.
+        t = @time.strftime("%Y-%m-%d_%H:%M_%z").gsub("+", "")
+        if @family.nil?
+          @name = "#{@volume.name}@zsnap_#{t}"
+        else
+          @name = "#{@volume.name}@zsnap_#{@family}_#{t}"
+        end
+      end
+
+      # Check for all necessary attributes.
       raise StandardError, "Undefined volume." if @volume.nil?
       raise StandardError, "Undefined time." if @time.nil?
+      raise StandardError, "Undefined name." if @name.nil?
     end
 
     #
     # === Description
     #
     # Return the name of this Snapshot. The name is in the form:
-    # "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    # "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S_%z" or "<VOLUME_NAME>@zsnap_<FAMILY>_%Y-%m-%d_%H:%M:%S_%z", whether the
+    # family name is set or not.
+    #
+    # *Note:* The "+" character from the timezone information is removed, due to the fact that ZFS does not allow the
+    # "+" character inside the snapshot name.
     #
     def name
-      return "#{@volume.name}@#{@time.strftime DATE_FORMAT}"
+      return @name
     end
 
     #
     # === Description
     #
-    # Set the state of the snapshot by supplying a name.
+    # Set the state of the snapshot by supplying a name. This method changes also the other attributes of the snapshot
+    # instance to match the values from the snapshot name.
     #
     # === Args
     #
     # [+value+]
     #   The name of the Snapshot as string, in the form:
-    #   "<VOLUME_NAME>@zsnap_<TIMESTAMP>"
+    #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S" (old format, UTC time)
+    #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M_%z" (new format, local time, timezone without "+" character)
+    #   * "<VOLUME_NAME>@zsnap_<FAMILY>_%Y-%m-%d_%H:%M_%z" (new format with family name, local time, timezone
+    #     without "+" character)
     #
     def name=(value)
+      # Helper function to check the snapshot name against a mask/template.
+      check_format = proc do |mask, s_parts|
+        (mask.size == s_parts.size) ? mask.zip(s_parts).map{|m, s| !!m.match(s)}.reduce(:&) : false
+      end
+
+      # Extract the Volume from the snapshot name.
       v_name = value.split("@").first
       @volume = Volume.all.find{|v| v.name == v_name}
       raise StandardError, "No matching volume found." if @volume.nil?
-      # Parse time and convert it into UTC.
-      tt = Time.strptime(value.split("@")[1], DATE_FORMAT)
-      @time = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min, tt.sec)
+      
+      # Extract the snapshot details from the snapshot name.
+      s_parts = value.split("@")[1].split("_")
+      if check_format[MASK_OLD_1, s_parts]
+        # The old snapshot name format (UTC time): "zsnap_%Y-%m-%d_%H:%M:%S"
+        tt = Time.strptime "#{s_parts[1]}_#{s_parts[2]}", "%Y-%m-%d_%H:%M:%S"
+        @time = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min)
+      elsif check_format[MASK_V_1, s_parts]
+        # The new snapshot name format, without family name (local time): "zsnap_%Y-%m-%d_%H:%M_%z"
+        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
+        # inside snapshot names, therfore we have to add it if necessary.
+        s_parts[3] = "+#{s_parts[3]}" if s_parts[3] =~ /^\d{4}$/
+        @time = Time.strptime "#{s_parts[1]}_#{s_parts[2]}_#{s_parts[3]}", "%Y-%m-%d_%H:%M_%z"
+      elsif check_format[MASK_V_2, s_parts]
+        # The new snapshot name format, with family name (local time): "zsnap_<FAMILY>_%Y-%m-%d_%H:%M_%z"
+        @family = s_parts[1]
+        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
+        # inside snapshot names, therfore we have to add it if necessary.
+        s_parts[4] = "+#{s_parts[4]}" if s_parts[4] =~ /^\d{4}$/
+        @time = Time.strptime "#{s_parts[2]}_#{s_parts[3]}_#{s_parts[4]}", "%Y-%m-%d_%H:%M_%z"
+      else
+        raise StandardError, "Invalid snapshot name format."
+      end
+      
+      # If we reach this line, everything should have worked correct.
+      @name = value
     end
 
     #
@@ -122,7 +192,7 @@ module ZSnap
       ZSnap.execute "zfs", "destroy", name
       LOG.info "Destroyed snapshot '#{name}'."
     end
-  end
+  end # Snapshot
 
   #
   # == Description
@@ -213,7 +283,7 @@ module ZSnap
       end
       return result
     end
-  end
+  end # Volume
 
   #
   # === Description
@@ -244,28 +314,24 @@ module ZSnap
       raise StandardError, "Argument '#{var}' must be greater than zero." if val < 0
     end
 
-    # Calculate destroy date.
-    result = Time.now.utc
+    # Calculate destroy date, start with the current date but set seconds to zero. 
+    result = Time.now
+    result = Time.new result.year, result.month, result.day, result.hour, result.min, 0, result.utc_offset
     # Subtract number of months.
     if months > 0
       # Calculate new month.
       nm = (result.month - months - 1) % 12 + 1
       # Calculate new year.
       ny = result.year + ((result.month - months - 1) / 12)
-      # Split result date into its parts.
-      result = result.to_a
-      # Set new month and year.
-      result[4] = nm
-      result[5] = ny
       
       # In some cases it is possible that the calculated date is not valid,
       # e. g. when subtracting one month from 2015-03-31, which would result in
-      # the date 2015-02-31. Furthermore Time.utc accepts those values but
+      # the date 2015-02-31. Furthermore Time.new accepts those values but
       # creates the date 2015-03-03. To comprehend this effect it is necessary
       # to reduce the days until we are at the last day of this month.
-      result[3] -= 1 until Time.utc(*result).month == result[4]
-      # Create a new Time object from the calculated date.
-      result = Time.utc *result
+      nd = result.day
+      nd -= 1 until (tmp = Time.new(ny, nm, nd, result.hour, result.min, result.sec, result.utc_offset)).month == nm
+      result = tmp
     end
       
     # Subtract weeks, days, hours and minutes.

@@ -9,16 +9,10 @@ describe "ZSnap::Volume" do
     v = ZSnap::Volume.new
     v.name = "pool"
 
-    t1 = Time.utc(2003, 2, 1, 4, 5, 6)
-
     mock = MiniTest::Mock.new
-    mock.expect :call, "", ["zfs", "snapshot", ZSnap::Snapshot.new(volume: v, time: t1).name]
+    mock.expect :call, "", ["zfs", "snapshot", ZSnap::Snapshot.new(volume: v).name]
     ZSnap.stub(:execute, mock) do
-      Time.stub(:now, t1) do
         s = v.create_snapshot
-        s.volume.must_equal v
-        s.time.must_equal t1
-      end
     end
     mock.verify
   end
@@ -28,7 +22,7 @@ describe "ZSnap::Volume" do
     volumes[0].name, volumes[1].name, volumes[2].name = "green", "red", "blue"
 
     time = []
-    20.times{|i| time << Time.utc(2000, 6, 5 + i, 6, 10, 0)}
+    20.times{|i| time << Time.new(2000, 6, 5 + i, 6, 10, 0, "+01:00")}
 
     exec_output = ""
     time.each do |t|
