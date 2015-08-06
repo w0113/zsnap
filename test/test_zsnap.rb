@@ -101,6 +101,16 @@ describe "ZSnap" do
       ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-c", "-M", "1", "-H", "2", "-d", "3", "-w", "4", "-m", "5", "old", "mc", "donald"]
       ZSnap.get_options.must_equal({create: true, minutes: 1, hours: 2, days: 3, weeks: 4, months: 5, help: false, volumes: ["old", "mc", "donald"]})
+      ARGV.replace ["-s"]
+      ZSnap.get_options
+      $simulate.must_equal true
+      LOG.level.must_equal Logger::INFO
+      $simulate = false
+      LOG.level = Logger::UNKNOWN
+      ARGV.replace ["-v"]
+      ZSnap.get_options
+      LOG.level.must_equal Logger::DEBUG
+      LOG.level = Logger::UNKNOWN
     ensure
       # Restore stdout.
       $stdout.close
@@ -112,7 +122,6 @@ describe "ZSnap" do
   end
 
   it "must process comandline arguments and take actions accordingly" do
-    # TODO rework test case.
     # Start date for testing.
     ct = Time.new(2000, 10, 30, 1, 2, 0, "+01:00")
 
@@ -131,20 +140,37 @@ describe "ZSnap" do
         mv = MiniTest::Mock.new
         eval "def mv.name; return '#{v[:name]}'; end", binding, __FILE__, __LINE__
         def mv.nil?; return false; end
-        mv.expect :create_snapshot, nil if v[:create]
+
+        if v[:create]
+          # Create snapshot must be called:
+          mv.expect :create_snapshot, nil
+        else
+          # Create snapshot must not be called:
+          def mv.create_snapshot; raise TestError, "Method must not be called."; end
+        end
 
         # Mock Snapshot objects for volume.
         ss = []
         20.times do |i|
           ms_time = Time.new(ct.year, ct.month, ct.day - i, ct.hour, ct.min)
           ms = MiniTest::Mock.new
+          # Add utility methods to snapshot mock.
           ms.instance_variable_set :@volume, mv
           def ms.volume; return @volume; end
           ms.instance_variable_set :@time, ms_time
           def ms.time; return @time; end
-#          ms.instance_variable_set :@name, ZSnap::Snapshot.new(volume: mv, time: ms_time).name
-#          def ms.name; return @name; end
-          ms.expect :destroy, nil if not v[:destroy].nil? and ms_time < v[:destroy]
+          ms.instance_variable_set :@name, ZSnap::Snapshot.new(volume: mv, time: ms_time).name
+          def ms.name; return @name; end
+
+          # Define destroy method for snapshot mock.
+          if not v[:destroy].nil? and ms_time < v[:destroy]
+            # Destroy must be called:
+            ms.expect :destroy, nil
+          else
+            # Destroy must not be called:
+            def ms.destroy; raise TestError, "Method must not be called."; end
+          end
+
           ss << ms
         end
         mv.instance_variable_set :@snapshots, ss

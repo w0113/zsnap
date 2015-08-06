@@ -190,5 +190,24 @@ describe "ZSnap::Snapshot" do
     end
     mock.verify
   end
+
+  it "must not destroy snapshots when simulating" do
+    v = ZSnap::Volume.new
+    v.name = "pool"
+    s = ZSnap::Snapshot.new volume: v
+
+    # Replace ZSnap.execute with a stub which raises an exception.
+    method_execute = ZSnap.method :execute
+    def ZSnap.execute(*args); raise TestError, "Method must not be called."; end
+
+    begin
+      $simulate = true
+      s.destroy
+      $simulate = false
+    ensure
+      # Restore ZSnap.execute
+      ZSnap.define_singleton_method :execute, method_execute
+    end
+  end
 end
 

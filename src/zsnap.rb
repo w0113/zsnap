@@ -16,6 +16,12 @@ LOG = Logger.new STDOUT
 # Default log level.
 LOG.level = Logger::WARN
 
+# Global flag to signal if the current excution of the script is for simulation purposes only.
+$simulate = false
+
+# Special error class to signal testing errors.
+class TestError < StandardError; end
+
 #
 # == Description
 #
@@ -192,8 +198,12 @@ module ZSnap
     # irreversible!
     #
     def destroy
-      ZSnap.execute "zfs", "destroy", name
-      LOG.info "Destroyed snapshot '#{name}'."
+      if $simulate
+        LOG.info "Would have destroyed snapshot '#{name}'."
+      else
+        ZSnap.execute "zfs", "destroy", name
+        LOG.info "Destroyed snapshot '#{name}'."
+      end
     end
   end # Snapshot
 
@@ -214,8 +224,12 @@ module ZSnap
     #
     def create_snapshot
       ss = Snapshot.new volume: self
-      ZSnap.execute "zfs", "snapshot", ss.name
-      LOG.info "Created snapshot '#{ss.name}'."
+      if $simulate
+        LOG.info "Would have created snapshot '#{ss.name}'."
+      else
+        ZSnap.execute "zfs", "snapshot", ss.name
+        LOG.info "Created snapshot '#{ss.name}'."
+      end
       return ss
     end
 
@@ -452,7 +466,14 @@ module ZSnap
               "for all specified VOLUME(s).", &handler_int.curry[:weeks])
       opts.on("-m", "--months [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of months,",
               "for all specified VOLUME(s).", &handler_int.curry[:months])
+      opts.separator ""
       opts.on("-h", "--help", "Show this message."){|v| options[:help] = v; puts opts.help}
+      opts.on("-s", "--simulate", "Do not create/destroy snapshots, instead print what would have happened.") do |v|
+        if v
+          LOG.level = Logger::INFO unless LOG.debug?
+          $simulate = true
+        end
+      end
       opts.on("-v", "Be verbose."){|v| LOG.level = Logger::DEBUG if v}
       opts.separator ""
       opts.separator "Examples:"
@@ -516,6 +537,10 @@ module ZSnap
           volumes.each{|v| v.snapshots.select{|s| s.time < destroy_before}.each{|s| s.destroy}}
         end
       end
+    rescue TestError => e
+      puts e.message
+      puts e.backtrace.join "\n"
+      raise # Let this exception raise. This is needed for testing.
     rescue StandardError => e
       LOG.error e.message
       LOG.debug e.backtrace.join "\n"
