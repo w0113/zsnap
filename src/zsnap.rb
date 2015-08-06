@@ -30,8 +30,8 @@ module ZSnap
   #
   class Snapshot
 
-    # The allowed family name format as part of the snapshot name.
-    FAMILY_FORMAT = /^[-a-zA-Z0-9]+$/
+    # The allowed group name format as part of the snapshot name.
+    GROUP_FORMAT = /^[-a-zA-Z0-9]+$/
     # The allowed date format as part of the snapshot name.
     DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/
     # The allowed hour format as part of the snapshot name.
@@ -39,13 +39,16 @@ module ZSnap
     # The allowed timezone format as part of the snapshot name.
     ZONE_FORMAT = /^-?\d{4}$/
 
+    # The old snapshot name format. The name separates each item of the array with an underscore.
     MASK_OLD_1 = ["zsnap", DATE_FORMAT, /^\d{2}:\d{2}:\d{2}$/]
+    # The new snapshot name format, without group. The name separates each item of the array with an underscore.
     MASK_V_1   = ["zsnap", DATE_FORMAT, HOUR_FORMAT, ZONE_FORMAT]
-    MASK_V_2   = ["zsnap", FAMILY_FORMAT, DATE_FORMAT, HOUR_FORMAT, ZONE_FORMAT]
+    # The new snapshot name format, with group. The name separates each item of the array with an underscore.
+    MASK_V_2   = ["zsnap", GROUP_FORMAT, DATE_FORMAT, HOUR_FORMAT, ZONE_FORMAT]
 
-    # The family name of snapshots, this snapshot belongs to.
+    # The group name of snapshots, this snapshot belongs to.
     # Returns a String object.
-    attr_reader :family
+    attr_reader :group
     # The time at wich this snapshot was created.
     # Returns a Time object.
     attr_reader :time
@@ -69,22 +72,22 @@ module ZSnap
     #   The name of the snapshot. See documentation of the method #name= for further information.
     # [+:volume+]
     #   The Volume object to which this snapshots belongs.
-    # [+:family+]
-    #   The family name of this snapshot as a String object (default = nil = default family).
+    # [+:group+]
+    #   The group name of this snapshot as a String object (default = nil = default group).
     # [+:time+]
     #   The time (as Time object) when this snapshot was created (default = Time.now).
     #
-    # A new instance can be created by supplying either volume, family and time, or the name parameter.
+    # A new instance can be created by supplying either volume, group and time, or the name parameter.
     #
     def initialize(opts = {})
       # Default arguments:
-      opts = {volume: nil, name: nil, family: nil, time: Time.now}.merge opts
+      opts = {volume: nil, name: nil, group: nil, time: Time.now}.merge opts
 
-      # Set family to given parameter if it consists only of the allowed characters.
-      if opts[:family].nil? or opts[:family] =~ FAMILY_FORMAT
-        @family = opts[:family]
+      # Set group to given parameter if it consists only of the allowed characters.
+      if opts[:group].nil? or opts[:group] =~ GROUP_FORMAT
+        @group = opts[:group]
       else
-        raise StandardError, "The family name must only contain alphabetic, numeric or the minus character."
+        raise StandardError, "The group name must only contain alphabetic, numeric or the minus character."
       end
 
       if opts[:name]
@@ -100,10 +103,10 @@ module ZSnap
 
         # Set the name of this snapshot.
         t = @time.strftime("%Y-%m-%d_%H:%M_%z").gsub("+", "")
-        if @family.nil?
+        if @group.nil?
           @name = "#{@volume.name}@zsnap_#{t}"
         else
-          @name = "#{@volume.name}@zsnap_#{@family}_#{t}"
+          @name = "#{@volume.name}@zsnap_#{@group}_#{t}"
         end
       end
 
@@ -117,8 +120,8 @@ module ZSnap
     # === Description
     #
     # Return the name of this Snapshot. The name is in the form:
-    # "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S_%z" or "<VOLUME_NAME>@zsnap_<FAMILY>_%Y-%m-%d_%H:%M:%S_%z", whether the
-    # family name is set or not.
+    # "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S_%z" or "<VOLUME_NAME>@zsnap_<GROUP>_%Y-%m-%d_%H:%M:%S_%z", whether the
+    # group name is set or not.
     #
     # *Note:* The "+" character from the timezone information is removed, due to the fact that ZFS does not allow the
     # "+" character inside the snapshot name.
@@ -139,7 +142,7 @@ module ZSnap
     #   The name of the Snapshot as string, in the form:
     #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S" (old format, UTC time)
     #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M_%z" (new format, local time, timezone without "+" character)
-    #   * "<VOLUME_NAME>@zsnap_<FAMILY>_%Y-%m-%d_%H:%M_%z" (new format with family name, local time, timezone
+    #   * "<VOLUME_NAME>@zsnap_<GROUP>_%Y-%m-%d_%H:%M_%z" (new format with group name, local time, timezone
     #     without "+" character)
     #
     def name=(value)
@@ -160,14 +163,14 @@ module ZSnap
         tt = Time.strptime "#{s_parts[1]}_#{s_parts[2]}", "%Y-%m-%d_%H:%M:%S"
         @time = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min)
       elsif check_format[MASK_V_1, s_parts]
-        # The new snapshot name format, without family name (local time): "zsnap_%Y-%m-%d_%H:%M_%z"
+        # The new snapshot name format, without group name (local time): "zsnap_%Y-%m-%d_%H:%M_%z"
         # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
         # inside snapshot names, therfore we have to add it if necessary.
         s_parts[3] = "+#{s_parts[3]}" if s_parts[3] =~ /^\d{4}$/
         @time = Time.strptime "#{s_parts[1]}_#{s_parts[2]}_#{s_parts[3]}", "%Y-%m-%d_%H:%M_%z"
       elsif check_format[MASK_V_2, s_parts]
-        # The new snapshot name format, with family name (local time): "zsnap_<FAMILY>_%Y-%m-%d_%H:%M_%z"
-        @family = s_parts[1]
+        # The new snapshot name format, with group name (local time): "zsnap_<GROUP>_%Y-%m-%d_%H:%M_%z"
+        @group = s_parts[1]
         # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
         # inside snapshot names, therfore we have to add it if necessary.
         s_parts[4] = "+#{s_parts[4]}" if s_parts[4] =~ /^\d{4}$/

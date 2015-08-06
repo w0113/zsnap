@@ -21,45 +21,45 @@ describe "ZSnap::Snapshot" do
     Time.stub(:now, t1) do
       proc {ZSnap::Snapshot.new}.must_raise StandardError
       proc {ZSnap::Snapshot.new time: t2}.must_raise StandardError
-      proc {ZSnap::Snapshot.new family: "foo"}.must_raise StandardError
-      proc {ZSnap::Snapshot.new family: ""}.must_raise StandardError
-      proc {ZSnap::Snapshot.new family: "foo_bar"}.must_raise StandardError
+      proc {ZSnap::Snapshot.new group: "foo"}.must_raise StandardError
+      proc {ZSnap::Snapshot.new group: ""}.must_raise StandardError
+      proc {ZSnap::Snapshot.new group: "foo_bar"}.must_raise StandardError
 
       s = ZSnap::Snapshot.new volume: v
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_2009-02-01_04:05_0100"
       s.time.must_equal t10
-      s.family.must_be_nil
+      s.group.must_be_nil
 
       s = ZSnap::Snapshot.new volume: v, time: t2
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_2005-02-01_04:05_0100"
       s.time.must_equal t20
-      s.family.must_be_nil
+      s.group.must_be_nil
 
       s = ZSnap::Snapshot.new volume: v, time: t4
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_2006-02-01_04:05_-0100"
       s.time.must_equal t40
-      s.family.must_be_nil
+      s.group.must_be_nil
 
-      s = ZSnap::Snapshot.new volume: v, family: "foo"
+      s = ZSnap::Snapshot.new volume: v, group: "foo"
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_foo_2009-02-01_04:05_0100"
       s.time.must_equal t10
-      s.family.must_equal "foo"
+      s.group.must_equal "foo"
 
-      s = ZSnap::Snapshot.new volume: v, time: t2, family: "foo"
+      s = ZSnap::Snapshot.new volume: v, time: t2, group: "foo"
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_foo_2005-02-01_04:05_0100"
       s.time.must_equal t20
-      s.family.must_equal "foo"
+      s.group.must_equal "foo"
 
-      s = ZSnap::Snapshot.new volume: v, time: t4, family: "foo"
+      s = ZSnap::Snapshot.new volume: v, time: t4, group: "foo"
       s.volume.must_equal v
       s.name.must_equal "#{v.name}@zsnap_foo_2006-02-01_04:05_-0100"
       s.time.must_equal t40
-      s.family.must_equal "foo"
+      s.group.must_equal "foo"
 
       ZSnap::Volume.stub(:all, [v]) do
         proc {ZSnap::Snapshot.new name: "#{v.name}@iamnotmadebyzsnap"}.must_raise StandardError
@@ -72,28 +72,28 @@ describe "ZSnap::Snapshot" do
         s.volume.must_equal v
         s.name.must_equal n
         s.time.must_equal t30
-        s.family.must_be_nil
+        s.group.must_be_nil
 
         n = "#{v.name}@zsnap_foo_2007-02-01_04:05_0100"
         s = ZSnap::Snapshot.new name: n
         s.volume.must_equal v
         s.name.must_equal n
         s.time.must_equal t30
-        s.family.must_equal "foo"
+        s.group.must_equal "foo"
 
         n = "#{v.name}@zsnap_2006-02-01_04:05_-0100"
         s = ZSnap::Snapshot.new name: n
         s.volume.must_equal v
         s.name.must_equal n
         s.time.must_equal t40
-        s.family.must_be_nil
+        s.group.must_be_nil
 
         n = "#{v.name}@zsnap_foo_2006-02-01_04:05_-0100"
         s = ZSnap::Snapshot.new name: n
         s.volume.must_equal v
         s.name.must_equal n
         s.time.must_equal t40
-        s.family.must_equal "foo"
+        s.group.must_equal "foo"
       end
     end
 
@@ -106,7 +106,7 @@ describe "ZSnap::Snapshot" do
         s.volume.must_equal v
         s.name.must_equal n
         s.time.must_equal t50
-        s.family.must_be_nil
+        s.group.must_be_nil
       end
     end
   end
@@ -132,46 +132,46 @@ describe "ZSnap::Snapshot" do
         s.volume.must_equal vs[0]
         s.time.must_equal t10
         s.name.must_equal "#{vs[0].name}@zsnap_2009-02-01_04:05_0100"
-        s.family.must_be_nil
+        s.group.must_be_nil
         s.name = "#{vs[1].name}@zsnap_2008-02-01_04:05_0100"
         s.volume.must_equal vs[1]
         s.time.must_equal t20
         s.name.must_equal "#{vs[1].name}@zsnap_2008-02-01_04:05_0100"
-        s.family.must_be_nil
+        s.group.must_be_nil
 
         s = ZSnap::Snapshot.new volume: vs[0]
         s.volume.must_equal vs[0]
         s.time.must_equal t10
         s.name.must_equal "#{vs[0].name}@zsnap_2009-02-01_04:05_0100"
-        s.family.must_be_nil
+        s.group.must_be_nil
         s.name = "#{vs[1].name}@zsnap_foo_2008-02-01_04:05_0100"
         s.volume.must_equal vs[1]
         s.time.must_equal t20
         s.name.must_equal "#{vs[1].name}@zsnap_foo_2008-02-01_04:05_0100"
-        s.family.must_equal "foo"
+        s.group.must_equal "foo"
 
         s = ZSnap::Snapshot.new volume: vs[0]
         s.volume.must_equal vs[0]
         s.time.must_equal t10
         s.name.must_equal "#{vs[0].name}@zsnap_2009-02-01_04:05_0100"
-        s.family.must_be_nil
+        s.group.must_be_nil
         s.name = "#{vs[1].name}@zsnap_foo_2007-02-01_04:05_-0100"
         s.volume.must_equal vs[1]
         s.time.must_equal t30
         s.name.must_equal "#{vs[1].name}@zsnap_foo_2007-02-01_04:05_-0100"
-        s.family.must_equal "foo"
+        s.group.must_equal "foo"
 
         # Old format.
         s = ZSnap::Snapshot.new volume: vs[0]
         s.volume.must_equal vs[0]
         s.time.must_equal t10
         s.name.must_equal "#{vs[0].name}@zsnap_2009-02-01_04:05_0100"
-        s.family.must_be_nil
+        s.group.must_be_nil
         s.name = "#{vs[1].name}@zsnap_2006-02-01_04:05:06"
         s.volume.must_equal vs[1]
         s.time.must_equal t40
         s.name.must_equal "#{vs[1].name}@zsnap_2006-02-01_04:05:06"
-        s.family.must_be_nil
+        s.group.must_be_nil
       end
     end
   end
