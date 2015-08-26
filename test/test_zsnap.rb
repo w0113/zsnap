@@ -59,48 +59,56 @@ describe "ZSnap" do
   it "must parse command line arguments" do
     stdout_old = $stdout
     argv_old = ARGV
+    loglevel_old = LOG.level
+
     begin
       # Redirect stdout to /dev/null for this test.
       $stdout = File.new "/dev/null", "w"
       
       ARGV.replace []
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-h"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-c"]
-      ZSnap.get_options.must_equal({create: true, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []})
+      ARGV.replace ["-g", "foo"]
+      ZSnap.get_options.must_equal({create: false, group: "foo", minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []})
+      ARGV.replace ["-g", ""]
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ARGV.replace ["-g", "foo_bar"]
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-M", "10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 10, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 10, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []})
       ARGV.replace ["-M", "-10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-M", "abc"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-H", "10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 10, days: 0, weeks: 0, months: 0, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 10, days: 0, weeks: 0, months: 0, help: false, volumes: []})
       ARGV.replace ["-H", "-10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-H", "abc"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-d", "10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 10, weeks: 0, months: 0, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 10, weeks: 0, months: 0, help: false, volumes: []})
       ARGV.replace ["-d", "-10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-d", "abc"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-w", "10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 10, months: 0, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 10, months: 0, help: false, volumes: []})
       ARGV.replace ["-w", "-10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-w", "abc"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-m", "10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 10, help: false, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 10, help: false, volumes: []})
       ARGV.replace ["-m", "-10"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
       ARGV.replace ["-m", "abc"]
-      ZSnap.get_options.must_equal({create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
-      ARGV.replace ["-c", "-M", "1", "-H", "2", "-d", "3", "-w", "4", "-m", "5", "old", "mc", "donald"]
-      ZSnap.get_options.must_equal({create: true, minutes: 1, hours: 2, days: 3, weeks: 4, months: 5, help: false, volumes: ["old", "mc", "donald"]})
+      ZSnap.get_options.must_equal({create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: true, volumes: []})
+      ARGV.replace ["-c", "-g", "bar", "-M", "1", "-H", "2", "-d", "3", "-w", "4", "-m", "5", "old", "mc", "donald"]
+      ZSnap.get_options.must_equal({create: true, group: "bar", minutes: 1, hours: 2, days: 3, weeks: 4, months: 5, help: false, volumes: ["old", "mc", "donald"]})
       ARGV.replace ["-s"]
       ZSnap.get_options
       $simulate.must_equal true
@@ -109,6 +117,10 @@ describe "ZSnap" do
       LOG.level = Logger::UNKNOWN
       ARGV.replace ["-v"]
       ZSnap.get_options
+      LOG.level.must_equal Logger::INFO
+      LOG.level = Logger::UNKNOWN
+      ARGV.replace ["--debug"]
+      ZSnap.get_options
       LOG.level.must_equal Logger::DEBUG
       LOG.level = Logger::UNKNOWN
     ensure
@@ -116,130 +128,233 @@ describe "ZSnap" do
       $stdout.close
       $stdout = stdout_old
 
-      # Restore ARGV
+      # Restore ARGV.
       ARGV.replace argv_old
+
+      # Restore log level.
+      LOG.level = loglevel_old
     end
   end
 
   it "must process comandline arguments and take actions accordingly" do
     # Start date for testing.
-    ct = Time.new(2000, 10, 30, 1, 2, 0, "+01:00")
+    ct = Time.new(2000, 10, 30, 1, 2, 0, "+05:00")
 
-    # MiniTest::Mock got its instance_variable_set method deleted.
-    # We need a small replacement.
-    class MiniTest::Mock
-      def instance_variable_set(var, value)
-        eval "#{var} = value", binding, __FILE__, __LINE__
-      end
-    end
+    # Helper function to create test data and run testcases.
+    run_test = lambda do |opts, *vs|
+      # opts = hash of options which should be returned by ZSnap.get_options.
+      # vs is of the form:
+      # [{vn: "Volume.name", groups: [{gn: "Group.name", create: bool, snap_count: n, destroy: time/nil}, ...]}, ...]
+      
+      # Hash to store the Group which #create_snapshot method must be called.
+      # Key = Group, Value = bool (true if it was called, otherwise false).
+      must_call_create = {}
+      # Hash to store the Snapshot which #destroy method must be called.
+      # Key = Snapshot, Value = bool (true if it was called, otherwise false).
+      must_call_destroy = {}
 
-    # Helper function to create test data.
-    create_volumes = lambda do |*vs|
-      return vs.map do |v|
-        # Mock Volume object
-        mv = MiniTest::Mock.new
-        eval "def mv.name; return '#{v[:name]}'; end", binding, __FILE__, __LINE__
-        def mv.nil?; return false; end
-
-        if v[:create]
-          # Create snapshot must be called:
-          mv.expect :create_snapshot, nil
-        else
-          # Create snapshot must not be called:
-          def mv.create_snapshot; raise TestError, "Method must not be called."; end
-        end
-
-        # Mock Snapshot objects for volume.
-        ss = []
-        20.times do |i|
-          ms_time = Time.new(ct.year, ct.month, ct.day - i, ct.hour, ct.min)
-          ms = MiniTest::Mock.new
-          # Add utility methods to snapshot mock.
-          ms.instance_variable_set :@volume, mv
-          def ms.volume; return @volume; end
-          ms.instance_variable_set :@time, ms_time
-          def ms.time; return @time; end
-          ms.instance_variable_set :@name, ZSnap::Snapshot.new(volume: mv, time: ms_time).name
-          def ms.name; return @name; end
-
-          # Define destroy method for snapshot mock.
-          if not v[:destroy].nil? and ms_time < v[:destroy]
-            # Destroy must be called:
-            ms.expect :destroy, nil
-          else
-            # Destroy must not be called:
-            def ms.destroy; raise TestError, "Method must not be called."; end
+      # Create v_info and s_info array to generate data structures.
+      v_info = vs.map{|v| {name: v[:vn]}}
+      s_info = []
+      vs.each do |v|
+        v[:groups].each do |g|
+          1.upto(g[:snap_count]) do |i|
+            t = (ct - (i * 24 * 60 * 60)).strftime("%Y-%m-%d_%H:%M_%z").gsub("+", "")
+            s_name = g[:gn].nil? ? "#{v[:vn]}@zsnap_#{t}" : "#{v[:vn]}@zsnap_#{g[:gn]}_#{t}" 
+            s_info << ZSnap::Volume.parse_snapshot_name(s_name)
           end
-
-          ss << ms
         end
-        mv.instance_variable_set :@snapshots, ss
-        def mv.snapshots; return @snapshots; end
-        mv
       end
-    end
 
-    # Helper function to test ZSnap.main:
-    test_main = lambda do |opts, *vs_opts|
-      Time.stub(:new, ct) do
-        vs = create_volumes[*vs_opts]
-        ZSnap::Volume.stub(:all, vs) do
-          ZSnap.stub(:get_options, opts) do
-            ZSnap.main
-            vs.each do |v|
-              v.verify
-              v.snapshots.each{|s| s.verify}
+      # Replace ZSnap::Group#create_snapshot and ZSnap::Snapshot#destroy with stubs.
+      ZSnap::Group.class_exec do
+        alias orig_create_snapshot create_snapshot
+        def create_snapshot
+          raise TestError, "Method must not be called on '#{name}'."
+        end
+      end
+      ZSnap::Snapshot.class_exec do
+        alias orig_destroy destroy
+        def destroy
+          raise TestError, "Method must not be called for '#{name}'."
+        end
+      end
+
+      begin
+        # Create the data structures by using ZSnap.
+        volumes = ZSnap::Volume.create_data(v_info, s_info)
+
+        vs.each do |v|
+          vol = volumes[v[:vn]]
+          v[:groups].each do |g|
+            gro = vol.get_group(g[:gn])
+
+            # Stub every Group#create_snapshot which must be called.
+            if g[:create]
+              must_call_create[gro] = false
+              gro.instance_variable_set :@must_call_create, must_call_create
+              def gro.create_snapshot; @must_call_create[self] = true; end
+            end
+
+            # Stub every Snapshot#destroy wich must be called.
+            unless g[:destroy].nil?
+              gro.snapshots.select{|s| s.time < g[:destroy]}.each do |s|
+                must_call_destroy[s] = false
+                s.instance_variable_set :@must_call_destroy, must_call_destroy
+                def s.destroy; @must_call_destroy[self] = true; end
+              end
             end
           end
+        end
+
+        # Run the testcase with the created data structures.
+        Time.stub(:new, ct) do
+          ZSnap::Volume.stub(:all, volumes) do
+            ZSnap.stub(:get_options, opts) do
+              ZSnap.main
+              must_call_create.values.reduce(:&).must_equal true unless must_call_create.empty?
+              must_call_destroy.values.reduce(:&).must_equal true unless must_call_destroy.empty?
+            end
+          end
+        end
+      ensure
+        # Restore old ZSnap::Group#create_snapshot and ZSnap::Snapshot#destroy methods.
+        ZSnap::Group.class_exec do
+          alias create_snapshot orig_create_snapshot
+          remove_method :orig_create_snapshot
+        end
+        ZSnap::Snapshot.class_exec do
+          alias destroy orig_destroy
+          remove_method :orig_destroy
         end
       end
     end
 
     # Test case: create snapshot for only specified volumes.
-    test_main.call({create: true, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: ["blue", "green"]},
-                   {name: "blue", create: true, destroy: nil}, 
-                   {name: "red", create: false, destroy: nil},
-                   {name: "green", create: true, destroy: nil})
+    run_test[{create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: ["red", "green"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: true,  destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: true,  destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
+
+    # Test case: create snapshot for only specified volumes with group orange.
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: ["red", "green"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: true,  destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
 
     # Test case: create snapshot for all volumes.
-    test_main.call({create: true, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []},
-                   {name: "blue", create: true, destroy: nil}, 
-                   {name: "red", create: true, destroy: nil},
-                   {name: "green", create: true, destroy: nil})
+    run_test[{create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: true,  destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: true,  destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: true,  destroy: nil}]}]
 
+    # Test case: create snapshot for all volumes with group orange.
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: true,  destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]}]
+    
     # Test case: delete snapshots for only specified volumes.
     dt = ct - (2 * 7 * 24 * 60 * 60)
-    test_main.call({create: false, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: ["blue", "green"]},
-                   {name: "blue", create: false, destroy: dt}, 
-                   {name: "red", create: false, destroy: nil},
-                   {name: "green", create: false, destroy: dt})
+    run_test[{create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: ["red"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: dt},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
+
+    # Test case: delete snapshots for only specified volumes with group orange.
+    dt = ct - (1 * 7 * 24 * 60 * 60)
+    run_test[{create: false, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 1, months: 0, help: false, volumes: ["red"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: dt},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
     
     # Test case: delete snapshots for all volumes.
     dt = ct - (2 * 7 * 24 * 60 * 60)
-    test_main.call({create: false, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: []},
-                   {name: "blue", create: false, destroy: dt}, 
-                   {name: "red", create: false, destroy: dt},
-                   {name: "green", create: false, destroy: dt})
+    run_test[{create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: dt},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: dt}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
+    
+    # Test case: delete snapshots for all volumes with group orange.
+    dt = ct - (1 * 7 * 24 * 60 * 60)
+    run_test[{create: false, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 1, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: dt},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
 
     # Test case: create snapshot and delete old snapshots for only specified volumes.
-    dt = ct - (10 * 24 * 60 * 60)
-    test_main.call({create: true, minutes: 0, hours: 0, days: 10, weeks: 0, months: 0, help: false, volumes: ["blue", "green"]},
-                   {name: "blue", create: true, destroy: dt}, 
-                   {name: "red", create: false, destroy: nil},
-                   {name: "green", create: true, destroy: dt})
-    
+    dt = ct - (2 * 7 * 24 * 60 * 60)
+    run_test[{create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: ["red", "blue"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: true,  destroy: dt},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: true,  destroy: nil}]}]
+
+    # Test case: create snapshot and delete old snapshots for only specified volumes with group orange.
+    dt = ct - (1 * 7 * 24 * 60 * 60)
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 1, months: 0, help: false, volumes: ["red", "blue"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: true,  destroy: dt},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]}]
+
     # Test case: create snapshot and delete old snapshots for all volumes.
-    dt = ct - (10 * 24 * 60 * 60)
-    test_main.call({create: true, minutes: 0, hours: 0, days: 10, weeks: 0, months: 0, help: false, volumes: []},
-                   {name: "blue", create: true, destroy: dt}, 
-                   {name: "red", create: true, destroy: dt},
-                   {name: "green", create: true, destroy: dt})
+    dt = ct - (2 * 7 * 24 * 60 * 60)
+    run_test[{create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: true,  destroy: dt},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: true,  destroy: dt}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: true,  destroy: nil}]}]
+
+    # Test case: create snapshot and delete old snapshots for all volumes with group orange.
+    dt = ct - (1 * 7 * 24 * 60 * 60)
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 1, months: 0, help: false, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: true,  destroy: dt},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil},
+                                    {gn: "orange", snap_count:  0, create: true,  destroy: nil}]}]
+    
+    # Test case: do nothing if help text was displayed.
+    run_test[{create: true, group: nil, minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: true, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
 
     # Test case: do nothing if help text was displayed.
-    test_main.call({create: true, minutes: 0, hours: 0, days: 10, weeks: 0, months: 0, help: true, volumes: []},
-                   {name: "blue", create: false, destroy: nil}, 
-                   {name: "red", create: false, destroy: nil},
-                   {name: "green", create: false, destroy: nil})
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: true, volumes: []},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
   end
 end
 

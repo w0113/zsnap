@@ -9,6 +9,7 @@
 
 require "logger"
 require "optparse"
+require "set"
 require "time"
 
 # The logger which is used throughout this project.
@@ -55,17 +56,17 @@ module ZSnap
     # The group name of snapshots, this snapshot belongs to.
     # Returns a String object.
     attr_reader :group
+    # The name of the snapshot which is used by ZFS.
+    # Returns a String object.
+    attr_reader :name
     # The time at wich this snapshot was created.
     # Returns a Time object.
     attr_reader :time
-    # The corresponding Volume of this snapshot.
-    # Returns a Volume object.
-    attr_reader :volume
 
     #
     # === Description
     #
-    # Create an instance.
+    # Create a new instance.
     #
     # === Args
     #
@@ -74,119 +75,38 @@ module ZSnap
     #
     # +opts+ accepts the following symbols to initialize a Snapshot object:
     #
-    # [+:name+]
-    #   The name of the snapshot. See documentation of the method #name= for further information.
-    # [+:volume+]
-    #   The Volume object to which this snapshots belongs.
     # [+:group+]
-    #   The group name of this snapshot as a String object (default = nil = default group).
+    #   The group to which this snapshot belongs.
+    # [+:name+]
+    #   The name of the snapshot, as it is used by ZFS (default = nil = create an apropriate name).
     # [+:time+]
     #   The time (as Time object) when this snapshot was created (default = Time.now).
     #
-    # A new instance can be created by supplying either volume, group and time, or the name parameter.
-    #
     def initialize(opts = {})
       # Default arguments:
-      opts = {volume: nil, name: nil, group: nil, time: Time.now}.merge opts
+      opts = {name: nil, group: nil, time: Time.now}.merge opts
 
-      # Set group to given parameter if it consists only of the allowed characters.
-      if opts[:group].nil? or opts[:group] =~ GROUP_FORMAT
-        @group = opts[:group]
-      else
-        raise StandardError, "The group name must only contain alphabetic, numeric or the minus character."
-      end
-
-      if opts[:name]
-        # Set the attributes by the given name.
-        self.name = opts[:name]
-      elsif opts[:volume]
-        # Set the attributes by the given parameters.
-        @volume = opts[:volume]
-        # Set the time and make sure that it is in the local timezone.
-        @time = opts[:time].utc? ? opts[:time].localtime : opts[:time]
-        # Zero out the seconds of time.
-        @time = Time.new @time.year, @time.month, @time.day, @time.hour, @time.min, 0, @time.utc_offset
-
-        # Set the name of this snapshot.
-        t = @time.strftime("%Y-%m-%d_%H:%M_%z").gsub("+", "")
-        if @group.nil?
-          @name = "#{@volume.name}@zsnap_#{t}"
-        else
-          @name = "#{@volume.name}@zsnap_#{@group}_#{t}"
-        end
-      end
-
-      # Check for all necessary attributes.
-      raise StandardError, "Undefined volume." if @volume.nil?
+      # Set attributes.
+      @group = opts[:group] if opts[:group].is_a? Group
+      @time = opts[:time] if opts[:time].is_a? Time
+      raise StandardError, "Undefined group." if @group.nil?
       raise StandardError, "Undefined time." if @time.nil?
-      raise StandardError, "Undefined name." if @name.nil?
-    end
 
-    #
-    # === Description
-    #
-    # Return the name of this Snapshot. The name is in the form:
-    # "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S_%z" or "<VOLUME_NAME>@zsnap_<GROUP>_%Y-%m-%d_%H:%M:%S_%z", whether the
-    # group name is set or not.
-    #
-    # *Note:* The "+" character from the timezone information is removed, due to the fact that ZFS does not allow the
-    # "+" character inside the snapshot name.
-    #
-    def name
-      return @name
-    end
-
-    #
-    # === Description
-    #
-    # Set the state of the snapshot by supplying a name. This method changes also the other attributes of the snapshot
-    # instance to match the values from the snapshot name.
-    #
-    # === Args
-    #
-    # [+value+]
-    #   The name of the Snapshot as string, in the form:
-    #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M:%S" (old format, UTC time)
-    #   * "<VOLUME_NAME>@zsnap_%Y-%m-%d_%H:%M_%z" (new format, local time, timezone without "+" character)
-    #   * "<VOLUME_NAME>@zsnap_<GROUP>_%Y-%m-%d_%H:%M_%z" (new format with group name, local time, timezone
-    #     without "+" character)
-    #
-    def name=(value)
-      # Helper function to check the snapshot name against a mask/template.
-      check_format = proc do |mask, s_parts|
-        (mask.size == s_parts.size) ? mask.zip(s_parts).map{|m, s| !!m.match(s)}.reduce(:&) : false
-      end
-
-      # Extract the Volume from the snapshot name.
-      v_name = value.split("@").first
-      @volume = Volume.all.find{|v| v.name == v_name}
-      raise StandardError, "No matching volume found." if @volume.nil?
-      
-      # Extract the snapshot details from the snapshot name.
-      s_parts = value.split("@")[1].split("_")
-      if check_format[MASK_OLD_1, s_parts]
-        # The old snapshot name format (UTC time): "zsnap_%Y-%m-%d_%H:%M:%S"
-        tt = Time.strptime "#{s_parts[1]}_#{s_parts[2]}", "%Y-%m-%d_%H:%M:%S"
-        @time = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min)
-      elsif check_format[MASK_V_1, s_parts]
-        # The new snapshot name format, without group name (local time): "zsnap_%Y-%m-%d_%H:%M_%z"
-        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
-        # inside snapshot names, therfore we have to add it if necessary.
-        s_parts[3] = "+#{s_parts[3]}" if s_parts[3] =~ /^\d{4}$/
-        @time = Time.strptime "#{s_parts[1]}_#{s_parts[2]}_#{s_parts[3]}", "%Y-%m-%d_%H:%M_%z"
-      elsif check_format[MASK_V_2, s_parts]
-        # The new snapshot name format, with group name (local time): "zsnap_<GROUP>_%Y-%m-%d_%H:%M_%z"
-        @group = s_parts[1]
-        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
-        # inside snapshot names, therfore we have to add it if necessary.
-        s_parts[4] = "+#{s_parts[4]}" if s_parts[4] =~ /^\d{4}$/
-        @time = Time.strptime "#{s_parts[2]}_#{s_parts[3]}_#{s_parts[4]}", "%Y-%m-%d_%H:%M_%z"
+      # Set seconds of @time to zero:
+      if @time.utc?
+        @time = Time.utc @time.year, @time.month, @time.day, @time.hour, @time.min, 0
       else
-        raise StandardError, "Invalid snapshot name format."
+        @time = Time.new @time.year, @time.month, @time.day, @time.hour, @time.min, 0, @time.utc_offset
       end
-      
-      # If we reach this line, everything should have worked correct.
-      @name = value
+
+      # Set snapshot name.
+      if opts[:name].nil?
+        t = @time.strftime("%Y-%m-%d_%H:%M_%z").gsub("+", "")
+        sp = "#{@group.volume.name}@zsnap_"
+        @name = @group.name.nil? ? "#{sp}#{t}" : "#{sp}#{@group.name}_#{t}"
+      else
+        @name = opts[:name]
+      end
     end
 
     #
@@ -210,20 +130,75 @@ module ZSnap
   #
   # == Description
   #
-  # This class represents a ZFS Volume.
+  # This class represents a group of snapshots.
   #
-  class Volume
+  class Group
 
-    # The name of the Volume as string.
-    attr_accessor :name
+    # The name of this group.
+    attr_reader :name
+    # The volume to which this group belongs.
+    attr_reader :volume
 
     #
     # === Description
     #
-    # Create a new Snapshot on this Volume.
+    # Create a new instance.
+    #
+    # === Args
+    #
+    # [+name+]
+    #   The name of this group.
+    # [+volume+]
+    #   The volume to which this group belongs.
+    #
+    def initialize(name, volume)
+      if name.nil? or name =~ Snapshot::GROUP_FORMAT
+        @name = name
+      else
+        raise StandardError, "The group name must only contain alphabetic, numeric or the minus character."
+      end
+      
+      if volume.is_a? ZSnap::Volume
+        @volume = volume
+      else
+        raise StandardError, "Invalid volume."
+      end
+
+      @snapshots = Set.new
+    end 
+
+    # 
+    # === Description
+    #
+    # Add a new snapshot to this group without creating it on the ZFS filesystem.
+    #
+    # === Args
+    #
+    # [+s+]
+    #   The Snapshot which should be added to this group. The snapshot is not created on the filesystem.
+    #
+    def add_snapshot(s)
+      if s.is_a? ZSnap::Snapshot
+        @snapshots << s
+        LOG.debug do
+          "Added Snapshot '#{s.name}' to #{@name.nil? ? "default Group" : "Group '#{@name}'"} " +
+            "for Volume '#{@volume.name}'."
+        end
+      else
+        raise StandardError, "Argument is not a Snapshot."
+      end
+    end
+
+    #
+    # === Description
+    #
+    # Create a new snapshot for this group. This also creates the snapshot for the ZFS volume.
+    # 
+    # This method returns the newly created snapshot.
     #
     def create_snapshot
-      ss = Snapshot.new volume: self
+      ss = Snapshot.new group: self
+      @snapshots << ss
       if $simulate
         LOG.info "Would have created snapshot '#{ss.name}'."
       else
@@ -236,23 +211,200 @@ module ZSnap
     #
     # === Description
     #
-    # Returns all Snapshots for this Volume in an Array. Only Snapshots created
-    # by this script will be returned, all other snapshots will be ignored.
+    # Return all snapshots of this group in an array.
     #
     def snapshots
+      return @snapshots.to_a
+    end
+  end # Group
+
+  #
+  # == Description
+  #
+  # This class represents a ZFS Volume.
+  #
+  class Volume
+
+    # The name of the Volume as string.
+    attr_reader :name
+
+    #
+    # === Description
+    #
+    # Create a new instance.
+    #
+    # === Args
+    #
+    # [+name+]
+    #   The name of this Volume.
+    #
+    def initialize(name)
+      raise StandardError, "Volume name must not be empty or nil." if name.nil? or name.empty?
+      @name = name
+      @groups = {}
+      # Create default Group.
+      @groups[nil] = Group.new nil, self
+    end
+
+    #
+    # === Description
+    #
+    # Return the default Group for this Volume.
+    #
+    def get_default_group
+      return get_group(nil)
+    end
+
+    #
+    # === Description
+    #
+    # Get a specific Group by its name.
+    #
+    # This method returns the Group with the specified name. If the Group does not exist, it will be created.
+    #
+    # === Args
+    #
+    # [+name+]
+    #   The name of the Group.
+    #
+    def get_group(g_name)
+      unless @groups.has_key?(g_name)
+        @groups[g_name] = Group.new(g_name, self)
+        LOG.debug{"Added group '#{g_name}' to Volume '#{@name}'."}
+      end
+      return @groups[g_name]
+    end
+
+    #
+    # === Description
+    #
+    # Return all Groups for this Volume.
+    #
+    def groups
+      return @groups.values
+    end
+
+    #
+    # === Description
+    #
+    # Return all Volume objects in a hash (key = Volume name; value = Volume object).
+    #
+    def self.all
+      # Only parse the commandline once.
+      @@all = create_data(read_volumes, read_snapshots) if not defined?(@@all) or @@all.nil?
+      # Return @@all if already defined.
+      return @@all
+    end
+
+    #
+    # === Description
+    #
+    # Create all data objects.
+    #
+    # This method creates all data objects (Volume, Group, Snapshot), by using the information from #read_volumes and
+    # #read_snapshots. The returned value is an hash containing all Volume names (key) and Volumes objects (values),
+    # all other objects are referenced by the returned Volumes.
+    #
+    # === Args
+    #
+    # [+v_info+]
+    #   An array of hashes containing the Volume information, returned by the method #read_volumes.
+    # [+s_info+]
+    #   An array of hashes containing the Snapshot information, returned by the method #read_snapshots.
+    #
+    def self.create_data(v_info, s_info)
+      # Create all Volumes
+      volumes = {}
+      v_info.each{|i| volumes[i[:name]] = ZSnap::Volume.new i[:name]}
+
+      volumes.each do |k, v|
+        # All snapshot information for Volume v.
+        sv = s_info.select{|i| i[:volume_name] == v.name}
+
+        # Create all Snapshots for each Group.
+        sv.each do |i|
+          g = i[:group_name].nil? ? v.get_default_group : v.get_group(i[:group_name])
+          n = i[:name]
+          t = i[:snapshot_time]
+          g.add_snapshot ZSnap::Snapshot.new(group: g, name: n, time: t)
+        end
+      end
+      return volumes
+    end
+
+    #
+    # === Description
+    #
+    # Parse the snapshot name and return the details inside a hash. The returned hash contains the following values:
+    #
+    # [+:name+]
+    #   The name of the Snapshot, as it is referenced by ZFS.
+    # [+:volume_name+]
+    #   The name of the Volume.
+    # [+:group_name+]
+    #   The name of the Group this snapshot is in, or nil if this Snapshot is in no Group (or default Group).
+    # [+:snapshot_time+]
+    #   The time when this Snapshot was taken.
+    #
+    def self.parse_snapshot_name(sname)
+      # Helper function to check the snapshot name against a mask/template.
+      check_format = proc do |mask, s_parts|
+        (mask.size == s_parts.size) ? mask.zip(s_parts).map{|m, s| !!m.match(s)}.reduce(:&) : false
+      end
+
+      result = {name: sname, volume_name: nil, group_name: nil, snapshot_time: nil}
+
+      # Extract the volume name from the snapshot name.
+      v_name = sname.split("@").first
+      result[:volume_name] = v_name
+
+      # Extract the snapshot details from the snapshot name.
+      s_parts = sname.split("@")[1].split("_")
+      if check_format[Snapshot::MASK_OLD_1, s_parts]
+        # The old snapshot name format (UTC time): "zsnap_%Y-%m-%d_%H:%M:%S"
+        tt = Time.strptime "#{s_parts[1]}_#{s_parts[2]}", "%Y-%m-%d_%H:%M:%S"
+        result[:snapshot_time] = Time.utc(tt.year, tt.month, tt.day, tt.hour, tt.min)
+      elsif check_format[Snapshot::MASK_V_1, s_parts]
+        # The new snapshot name format, without group name (local time): "zsnap_%Y-%m-%d_%H:%M_%z"
+        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
+        # inside snapshot names, therfore we have to add it if necessary.
+        s_parts[3] = "+#{s_parts[3]}" if s_parts[3] =~ /^\d{4}$/
+        result[:snapshot_time] = Time.strptime "#{s_parts[1]}_#{s_parts[2]}_#{s_parts[3]}", "%Y-%m-%d_%H:%M_%z"
+      elsif check_format[Snapshot::MASK_V_2, s_parts]
+        # The new snapshot name format, with group name (local time): "zsnap_<GROUP>_%Y-%m-%d_%H:%M_%z"
+        result[:group_name] = s_parts[1]
+        # There is one catch; the "+" character may occur in the "%z" flag, but ZFS does not allow this character
+        # inside snapshot names, therfore we have to add it if necessary.
+        s_parts[4] = "+#{s_parts[4]}" if s_parts[4] =~ /^\d{4}$/
+        result[:snapshot_time] = Time.strptime "#{s_parts[2]}_#{s_parts[3]}_#{s_parts[4]}", "%Y-%m-%d_%H:%M_%z"
+      else
+        raise StandardError, "Invalid snapshot name format."
+      end
+      return result
+    end
+
+    #
+    # === Description
+    #
+    # Read all ZSnap Snapshot informtion from ZFS and return them as hashes inside an array.
+    # 
+    # For information of the returned hashes see method #parse_snapshot_name
+    #
+    def self.read_snapshots
+      # Parse Groups/Snapshots.
       result = []
-      # Get all snapshots
-      snapshots = ZSnap.execute("zfs", "list", "-Hpt", "snapshot").lines
+      # Get all snapshot information from ZFS.
+      eout = ZSnap.execute("zfs", "list", "-Hpt", "snapshot").lines
       #   1.9.3: String#lines -> Enumerator
       # >=2.0.0: String#lines -> Array
-      snapshots = snapshots.to_a if snapshots.is_a? Enumerator
-      # Only keep snapshots of this volume.
-      snapshots.select!{|ss| ss.start_with? "#{@name}@"}
-      # Create Snapshot object for each line.
-      snapshots.each do |line|
+      eout = eout.to_a if eout.is_a? Enumerator
+      # Only keep snapshots created by ZSnap.
+      eout.select!{|ss| ss =~ /^[^@]+@zsnap/}
+      # Parse all snapshot names and store the snapshot metainformation inside the array result.
+      eout.each do |line|
         name = line.split("\t").first
         begin
-          result << Snapshot.new(name: name)
+          result << Volume.parse_snapshot_name(name)
         rescue StandardError => e
           LOG.debug "Ignoring snapshot '#{name}'."
           next
@@ -264,40 +416,20 @@ module ZSnap
     #
     # === Description
     #
-    # Return all Volume objects in an Array.
+    # Read all Volume information from ZFS and return them as hashes inside an array. Each hash has the following
+    # values:
     #
-    def self.all
-      if not defined?(@@all) or @@all.nil?
-        @@all = []
-        ZSnap.execute("zfs", "list", "-Hp").lines.map{|l| l.split("\t").first}.each do |line|
-          ds = Volume.new
-          ds.name = line
-          @@all << ds
-        end
-        LOG.debug "Found the following volumes: #{@@all.map{|v| v.name}.join(", ")}"
-      end
-      return @@all
-    end
-
+    # [+:name+]
+    #   The name of the Volume.
     #
-    # === Description
-    #
-    # Find Volume objects by name.
-    #
-    # Returns an array of all Volumes object, which match the specified names.
-    #
-    # === Args
-    #
-    # [+names+]
-    #   The names (as string) of the Volumes which should be found.
-    #
-    def self.find_by_names(*names)
+    def self.read_volumes
       result = []
-      names.each do |vs|
-        volume = Volume.all.find{|v| v.name == vs}
-        raise StandardError, "Volume '#{vs}' not found." if volume.nil?
-        result << volume
+      ZSnap.execute("zfs", "list", "-Hp").lines.map{|l| l.split("\t").first}.each do |line|
+        info = {}
+        info[:name] = line
+        result << info
       end
+      LOG.debug "Found the following volumes: #{result.map{|v| v[:name]}.join(", ")}"
       return result
     end
   end # Volume
@@ -421,7 +553,7 @@ module ZSnap
   #
   def self.get_options
     # Default values for command line arguments:
-    options = {create: false, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []}
+    options = {create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []}
 
     # Parser for command line and help text.
     op = OptionParser.new do |opts|
@@ -437,6 +569,42 @@ module ZSnap
       opts.banner = "Usage: #{$0} [OPTION]... [VOLUME]..."
       opts.separator "Automatically create and destroy snapshots for ZFS VOLUME(s)."
       opts.separator ""
+      opts.separator "Options:"
+      opts.separator ""
+      opts.on("-c", "--create", "Create a snapshot for all specified", "VOLUME(s)."){|v| options[:create] = v}
+      opts.on("-g", "--group [NAME]", String, "Specify the group on which all operations",
+              "(delete/destroy) should be performed. The", "group will be created if it does not",
+              "already exist.") do |s|
+        if s =~ Snapshot::GROUP_FORMAT
+          options[:group] = s
+        else
+          raise OptionParser::InvalidArgument, "- Must only contain alphanumeric characters and the minus sign."
+        end
+      end
+      opts.separator ""
+      opts.on("-M", "--minutes [NUMBER]", Integer, "Destroy every snapshot which is older",
+              "than NUMBER of minutes, for all specified", "VOLUME(s).", &handler_int.curry[:minutes])
+      opts.on("-H", "--hours [NUMBER]", Integer, "Destroy every snapshot which is older",
+              "than NUMBER of hours, for all specified", "VOLUME(s).", &handler_int.curry[:hours])
+      opts.on("-d", "--days [NUMBER]", Integer, "Destroy every snapshot which is older",
+              "than NUMBER of days, for all specified", "VOLUME(s).", &handler_int.curry[:days])
+      opts.on("-w", "--weeks [NUMBER]", Integer, "Destroy every snapshot which is older",
+              "than NUMBER of weeks, for all specified", "VOLUME(s).", &handler_int.curry[:weeks])
+      opts.on("-m", "--months [NUMBER]", Integer, "Destroy every snapshot which is older",
+              "than NUMBER of months, for all specified", "VOLUME(s).", &handler_int.curry[:months])
+      opts.separator ""
+      opts.on("-s", "--simulate", "Do not create/destroy snapshots, instead",
+              "print what would have happened.") do |v|
+        if v
+          LOG.level = Logger::INFO unless LOG.debug?
+          $simulate = true
+        end
+      end
+      opts.separator ""
+      opts.on("--debug", "Show debug messages."){|v| LOG.level = Logger::DEBUG if v}
+      opts.on("-h", "--help", "Show this message."){|v| options[:help] = v; puts opts.help}
+      opts.on("-v", "Be verbose."){|v| LOG.level = Logger::INFO if v and not LOG.debug?}
+      opts.separator ""
       opts.separator "The options -M, -H, -d, -w or -m are used to specify which snapshots should"
       opts.separator "be destroyed. It is possible to combine those options, e. g. '-w 2 -H 12'"
       opts.separator "would delete all snapshots which are older than two weeks and twelve hours. If"
@@ -444,46 +612,35 @@ module ZSnap
       opts.separator "only snapshots created by this script will be deleted, all other snapshots"
       opts.separator "remain untouched."
       opts.separator ""
-      opts.separator "All choosen operations are only applied to the specified volumes. Those"
-      opts.separator "volumes must be ZFS volumes and if no volumes are specified, the operation is"
-      opts.separator "done on ALL available volumes."
+      opts.separator "All choosen operations are only applied to the specified group for all"
+      opts.separator "specified volumes. Each volume must be ZFS a volume and if no volumes are"
+      opts.separator "specified, the operation is done on ALL available volumes."
       opts.separator ""
-      opts.separator "Note: This script is intended to be used in a cronjob. E. g. to make a snapshot"
-      opts.separator "every full hour and keep the snapshots of the last two weeks, add this line to"
-      opts.separator "your '/etc/crontab' file:"
+      opts.separator "A group is a way to organize snapshots on each volume. If no group is"
+      opts.separator "specified, the default group is used. The default group has no name. It is"
+      opts.separator "important to note that omitting the group does NOT apply the choosen operations"
+      opts.separator "on all groups, but the default group. By using groups it is possible to"
+      opts.separator "use multiple create/destroy schedules on each volume (e. g. hourly, daily,"
+      opts.separator "weekly, ...)."
+      opts.separator ""
+      opts.separator "All created snapshots are named in the following manner:"
+      opts.separator "    VOLUME@zsnap_GROUP_yyyy-mm-dd_HH:MM_tz"
+      opts.separator "e. g."
+      opts.separator "    tank@zsnap_daily_2000-12-25_14:35_0500"
+      opts.separator ""
+      opts.separator "Note: This script is intended to be used in a cronjob. E. g. to make a"
+      opts.separator "snapshot every full hour and keep the snapshots of the last two weeks,"
+      opts.separator "add this line to your '/etc/crontab' file:"
       opts.separator "    0 * * * *  root  #{$0} -c -w 2"
-      opts.separator ""
-      opts.separator "Options:"
-      opts.separator ""
-      opts.on("-c", "--create", "Create a snapshot for all specified VOLUME(s)."){|v| options[:create] = v}
-      opts.on("-M", "--minutes [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of minutes,",
-              "for all specified VOLUME(s).", &handler_int.curry[:minutes])
-      opts.on("-H", "--hours [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of hours,",
-              "for all specified VOLUME(s).", &handler_int.curry[:hours])
-      opts.on("-d", "--days [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of days,",
-              "for all specified VOLUME(s).", &handler_int.curry[:days])
-      opts.on("-w", "--weeks [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of weeks,",
-              "for all specified VOLUME(s).", &handler_int.curry[:weeks])
-      opts.on("-m", "--months [NUMBER]", Integer, "Destroy every snapshot which is older than NUMBER of months,",
-              "for all specified VOLUME(s).", &handler_int.curry[:months])
-      opts.separator ""
-      opts.on("-h", "--help", "Show this message."){|v| options[:help] = v; puts opts.help}
-      opts.on("-s", "--simulate", "Do not create/destroy snapshots, instead print what would have happened.") do |v|
-        if v
-          LOG.level = Logger::INFO unless LOG.debug?
-          $simulate = true
-        end
-      end
-      opts.on("-v", "Be verbose."){|v| LOG.level = Logger::DEBUG if v}
       opts.separator ""
       opts.separator "Examples:"
       opts.separator ""
       opts.separator " - #{$0} -c"
       opts.separator "   Create a new snapshot for all volumes."
       opts.separator ""
-      opts.separator " - #{$0} -c -w 8 tank"
+      opts.separator " - #{$0} -c -w 8 -g daily tank"
       opts.separator "   Create a new snapshot and destroy all snapshots which are older than eight"
-      opts.separator "   weeks, for volume 'tank'."
+      opts.separator "   weeks, for group 'daily' on volume 'tank'."
       opts.separator ""
       opts.separator " - #{$0} -m 1 -w 2"
       opts.separator "   Destroy all snapshots which are older than one month and two weeks."
@@ -522,19 +679,23 @@ module ZSnap
 
       # If the help dialog was printed, it is assumed that no further action should be performed.
       unless options[:help]
-        # Get the select volumes or all volumes, if no volume was specified.
-        volumes = (options[:volumes].empty?) ? Volume.all : Volume.find_by_names(*options[:volumes])
-        LOG.debug "Using the following volumes: #{volumes.map{|v| v.name}.join(", ")}"
+        # Get the selected volumes or all volumes, if no volume was specified.
+        volumes = (options[:volumes].empty?) ? Volume.all : Volume.all.select{|k, v| options[:volumes].include?(v.name)}
+        LOG.debug "Using the following volumes: #{volumes.keys.join(", ")}"
 
-        # Create a snapshot for each volume.
-        volumes.each{|v| v.create_snapshot} if options[:create]
+        # Get the specific group for each volume.
+        groups = options[:group].nil? ? volumes.values.map{|v| v.get_default_group} :
+          volumes.values.map{|v| v.get_group(options[:group])}
+
+        # Create a snapshot for each group.
+        groups.each{|g| g.create_snapshot} if options[:create]
 
         # Destroy snapshots which are older as a specific date.
         destroy_values = [options[:months], options[:weeks], options[:days], options[:hours], options[:minutes]]
         if destroy_values.reduce(:+) > 0
           destroy_before = calc_destroy_date *destroy_values
           # Delete all snapshots, for all specified volumes which are older than "destroy_before".
-          volumes.each{|v| v.snapshots.select{|s| s.time < destroy_before}.each{|s| s.destroy}}
+          groups.each{|g| g.snapshots.select{|s| s.time < destroy_before}.each{|s| s.destroy}}
         end
       end
     rescue TestError => e
