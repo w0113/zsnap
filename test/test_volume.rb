@@ -98,15 +98,15 @@ describe "ZSnap::Volume" do
 
   it "must read Snapshot information from ZFS" do
     exec_output = ""
-    exec_output += "red@zsnap_2010-05-01_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "green@zsnap_2010-05-01_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "blue@zsnap_2010-05-01_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "red@zsnap_2010-05-02_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "green@zsnap_2010-05-02_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "blue@zsnap_2010-05-02_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "red@zsnap_2010-05-03_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "green@zsnap_2010-05-03_06:07:08\t0\t-\t249751872\t-\n"
-    exec_output += "blue@zsnap_2010-05-03_06:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "red@zsnap_2010-05-01_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "green@zsnap_2010-05-01_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "blue@zsnap_2010-05-01_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "red@zsnap_2010-05-02_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "green@zsnap_2010-05-02_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "blue@zsnap_2010-05-02_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "red@zsnap_2010-05-03_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "green@zsnap_2010-05-03_05:07:08\t0\t-\t249751872\t-\n"
+    exec_output += "blue@zsnap_2010-05-03_05:07:08\t0\t-\t249751872\t-\n"
     exec_output += "red@zsnap_2010-05-04_06:07_0100\t0\t-\t249751872\t-\n"
     exec_output += "green@zsnap_2010-05-04_06:07_0100\t0\t-\t249751872\t-\n"
     exec_output += "blue@zsnap_2010-05-04_06:07_0100\t0\t-\t249751872\t-\n"
@@ -146,7 +146,7 @@ describe "ZSnap::Volume" do
         t.month.must_equal 5
         t.day.must_be :>=, 1
         t.day.must_be :<=, 10
-        t.hour.must_equal 6
+        t.utc.hour.must_equal 5
         t.min.must_equal 7
         t.sec.must_equal 0
       end
