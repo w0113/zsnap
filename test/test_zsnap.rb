@@ -355,6 +355,22 @@ describe "ZSnap" do
                                     {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
              {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
              {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
+
+    # Test case: it must nothing be done if a wrong volume was specified.
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: ["black"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
+    
+    # Test case: it must nothing be done if a wrong volume was specified.
+    run_test[{create: true, group: "orange", minutes: 0, hours: 0, days: 0, weeks: 2, months: 0, help: false, volumes: ["red", "black"]},
+             {vn: "red",   groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil},
+                                    {gn: "orange", snap_count: 10, create: false, destroy: nil},
+                                    {gn: "brown",  snap_count:  0, create: false, destroy: nil}]},
+             {vn: "green", groups: [{gn: nil,      snap_count: 20, create: false, destroy: nil}]},
+             {vn: "blue",  groups: [{gn: nil,      snap_count:  0, create: false, destroy: nil}]}]
   end
 end
 

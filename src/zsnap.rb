@@ -679,6 +679,10 @@ module ZSnap
 
       # If the help dialog was printed, it is assumed that no further action should be performed.
       unless options[:help]
+        # Check if all Volumes are existing.
+        uv = options[:volumes] - Volume.all.keys
+        raise StandardError, "Unknown volumes: #{uv.map{|v| "'#{v}'"}.join(", ")}" unless uv.empty?
+
         # Get the selected volumes or all volumes, if no volume was specified.
         volumes = (options[:volumes].empty?) ? Volume.all : Volume.all.select{|k, v| options[:volumes].include?(v.name)}
         LOG.debug "Using the following volumes: #{volumes.keys.join(", ")}"
