@@ -10,7 +10,7 @@ ZSnap is a simple snapshot tool to create and destroy snapshots automatically fo
 
 ZSnap is able to create new snapshots on a set of ZFS volumes and to destroy old snapshots. ZSnap is written as a commandline tool. After installation it should be possible to execute the command `zsnap -h` to get a help summary: 
 
-    Usage: src/zsnap.rb [OPTION]... [VOLUME]...
+    Usage: zsnap [OPTION]... [VOLUME]...
     Automatically create and destroy snapshots for ZFS VOLUME(s).
     
     Options:
@@ -79,21 +79,21 @@ ZSnap is able to create new snapshots on a set of ZFS volumes and to destroy old
     Note: This script is intended to be used in a cronjob. E. g. to make a
     snapshot every full hour and keep the snapshots of the last two weeks,
     add this line to your '/etc/crontab' file:
-        0 * * * *  root  src/zsnap.rb -c -w 2
+        0 * * * *  root  zsnap -c -w 2
     
     Examples:
     
-     - src/zsnap.rb -c
+     - zsnap -c
        Create a new snapshot for all volumes.
     
-     - src/zsnap.rb -c -w 8 -g daily tank
+     - zsnap -c -w 8 -g daily tank
        Create a new snapshot and destroy all snapshots which are older than eight
        weeks, for group 'daily' on volume 'tank'.
     
-     - src/zsnap.rb -m 1 -w 2
+     - zsnap -m 1 -w 2
        Destroy all snapshots which are older than one month and two weeks.
     
-     - src/zsnap.rb -g daily -k 24
+     - zsnap -g daily -k 24
        Destroy all snapshots except the last 24 on the group 'daily' for all
        volumes.
 
