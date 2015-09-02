@@ -9,6 +9,7 @@
 
 require "logger"
 require "optparse"
+require "observer"
 require "set"
 require "time"
 
@@ -19,9 +20,6 @@ LOG.level = Logger::WARN
 
 # Global flag to signal if the current excution of the script is for simulation purposes only.
 $simulate = false
-
-# Special error class to signal testing errors.
-class TestError < StandardError; end
 
 #
 # == Description
@@ -36,6 +34,8 @@ module ZSnap
   # This class represents a ZFS snapshot.
   #
   class Snapshot
+
+    include Observable
 
     # The allowed group name format as part of the snapshot name.
     GROUP_FORMAT = /^[-a-zA-Z0-9]+$/
@@ -124,6 +124,10 @@ module ZSnap
         ZSnap.execute "zfs", "destroy", name
         LOG.info "Destroyed snapshot '#{name}'."
       end
+
+      # Notify observers.
+      changed
+      notify_observers :destroy, self
     end
   end # Snapshot
 
@@ -179,6 +183,7 @@ module ZSnap
     #
     def add_snapshot(s)
       if s.is_a? ZSnap::Snapshot
+        s.add_observer self
         @snapshots << s
         LOG.debug do
           "Added Snapshot '#{s.name}' to #{@name.nil? ? "default Group" : "Group '#{@name}'"} " +
@@ -197,15 +202,15 @@ module ZSnap
     # This method returns the newly created snapshot.
     #
     def create_snapshot
-      ss = Snapshot.new group: self
-      @snapshots << ss
+      s = Snapshot.new group: self
+      add_snapshot s
       if $simulate
-        LOG.info "Would have created snapshot '#{ss.name}'."
+        LOG.info "Would have created snapshot '#{s.name}'."
       else
-        ZSnap.execute "zfs", "snapshot", ss.name
-        LOG.info "Created snapshot '#{ss.name}'."
+        ZSnap.execute "zfs", "snapshot", s.name
+        LOG.info "Created snapshot '#{s.name}'."
       end
-      return ss
+      return s
     end
 
     #
@@ -215,6 +220,26 @@ module ZSnap
     #
     def snapshots
       return @snapshots.to_a
+    end
+
+    #
+    # === Description
+    #
+    # This method gets called if an observed object changes.
+    #
+    # === Args
+    #
+    # [+action+]
+    #   A symbol which describes what happened (currently only :destroy).
+    # [+snapshot+]
+    #   The object which changed.
+    #
+    def update(action, snapshot)
+      if action == :destroy
+        snapshot.delete_observer self
+        @snapshots.delete snapshot
+        LOG.debug "Removed snapshot '#{snapshot.name}' from group '#{name}'."
+      end
     end
   end # Group
 
@@ -553,7 +578,7 @@ module ZSnap
   #
   def self.get_options
     # Default values for command line arguments:
-    options = {create: false, group: nil, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []}
+    options = {create: false, group: nil, keep: 0, minutes: 0, hours: 0, days: 0, weeks: 0, months: 0, help: false, volumes: []}
 
     # Parser for command line and help text.
     op = OptionParser.new do |opts|
@@ -581,6 +606,9 @@ module ZSnap
           raise OptionParser::InvalidArgument, "- Must only contain alphanumeric characters and the minus sign."
         end
       end
+      opts.separator ""
+      opts.on("-k", "--keep [NUMBER]", Integer, "Keep NUMBER of newest snapshots and",
+              "destroy older snapshots, for all specified", "VOLUME(s).", &handler_int.curry[:keep])
       opts.separator ""
       opts.on("-M", "--minutes [NUMBER]", Integer, "Destroy every snapshot which is older",
               "than NUMBER of minutes, for all specified", "VOLUME(s).", &handler_int.curry[:minutes])
@@ -652,6 +680,12 @@ module ZSnap
         # Parse cmdline arguments.
         op.parse!(ARGV)
         options[:volumes] = ARGV.dup
+
+        if options[:keep] > 0 and [:minutes, :hours, :days, :weeks, :months].map{|v| options[v]}.reduce(:+) > 0
+          [:keep, :minutes, :hours, :days, :weeks, :months].each{|v| options[v] = 0}
+          em = "- The option -k is mutual exclusive to the options -M, -H, -d, -w and -m." 
+          raise OptionParser::InvalidArgument, em 
+        end
       rescue OptionParser::InvalidArgument => e
         # This happens if a wrong cmdline argument was specified.
         options[:help] = true
@@ -694,21 +728,21 @@ module ZSnap
         # Create a snapshot for each group.
         groups.each{|g| g.create_snapshot} if options[:create]
 
-        # Destroy snapshots which are older as a specific date.
         destroy_values = [options[:months], options[:weeks], options[:days], options[:hours], options[:minutes]]
         if destroy_values.reduce(:+) > 0
+          # Destroy snapshots which are older as a specific date.
           destroy_before = calc_destroy_date *destroy_values
           # Delete all snapshots, for all specified volumes which are older than "destroy_before".
           groups.each{|g| g.snapshots.select{|s| s.time < destroy_before}.each{|s| s.destroy}}
+        elsif options[:keep] > 0
+          # Keep only the specified number of snapshots for each group and delete the rest.
+          groups.each{|g| g.snapshots.sort_by{|s| s.time}.reverse.drop(options[:keep]).each{|s| s.destroy}}
         end
       end
-    rescue TestError => e
-      puts e.message
-      puts e.backtrace.join "\n"
-      raise # Let this exception raise. This is needed for testing.
     rescue StandardError => e
       LOG.error e.message
       LOG.debug e.backtrace.join "\n"
+      raise if $test_running # Let this exception raise. This is needed for testing.
     end
   end
 end

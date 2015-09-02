@@ -4,6 +4,9 @@
 # All testfiles must be inside the "test" folder, named like "test_<name>.rb" and should only require this file (this
 # script will load all source code for the testfiles).
 
+# This global variable is used inside the source code to determine if tests are running or not.
+$test_running = true
+
 # Check if we should generate a coverage report.
 if ENV["COVERAGE"]
   require "simplecov"

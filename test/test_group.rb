@@ -54,6 +54,19 @@ describe "ZSnap::Group" do
     end
   end
 
+  it "must remove destroyed snapshots" do
+    ZSnap.stub(:execute, nil) do
+      v = ZSnap::Volume.new "tank"
+      g = v.get_default_group
+      s = ZSnap::Snapshot.new group: g
+
+      g.add_snapshot s
+      g.snapshots.must_equal [s]
+      s.destroy
+      g.snapshots.must_equal []
+    end
+  end
+
   it "must return all snapshots" do
     v = ZSnap::Volume.new "tank"
     g = v.get_default_group
