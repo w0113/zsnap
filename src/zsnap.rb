@@ -559,6 +559,11 @@ module ZSnap
   # [+create+]
   #   This value is true if the "-c" flag was specified on the commandline,
   #   otherwise false.
+  # [+group+]
+  #   The name of the group as string on which all create/destroy operations
+  #   should be done or nil if no group was specified.
+  # [+keep+]
+  #   The value of the "-k" flag. This is always an integer >= 0 (default = 0).
   # [+minutes+]
   #   The value of the "-M" flag. This is always an integer >= 0 (default = 0).
   # [+hours+]
@@ -633,16 +638,9 @@ module ZSnap
       opts.on("-h", "--help", "Show this message."){|v| options[:help] = v; puts opts.help}
       opts.on("-v", "Be verbose."){|v| LOG.level = Logger::INFO if v and not LOG.debug?}
       opts.separator ""
-      opts.separator "The options -M, -H, -d, -w or -m are used to specify which snapshots should"
-      opts.separator "be destroyed. It is possible to combine those options, e. g. '-w 2 -H 12'"
-      opts.separator "would delete all snapshots which are older than two weeks and twelve hours. If"
-      opts.separator "none of those options are used, no snapshot will be destroyed. Furthermore"
-      opts.separator "only snapshots created by this script will be deleted, all other snapshots"
-      opts.separator "remain untouched."
-      opts.separator ""
-      opts.separator "All choosen operations are only applied to the specified group for all"
-      opts.separator "specified volumes. Each volume must be ZFS a volume and if no volumes are"
-      opts.separator "specified, the operation is done on ALL available volumes."
+      opts.separator "All create/destroy operations are only applied to the specified group for"
+      opts.separator "all specified volumes. Each volume must be ZFS a volume and if no volumes"
+      opts.separator "are specified, the operation is done on ALL available volumes."
       opts.separator ""
       opts.separator "A group is a way to organize snapshots on each volume. If no group is"
       opts.separator "specified, the default group is used. The default group has no name. It is"
@@ -655,6 +653,17 @@ module ZSnap
       opts.separator "    VOLUME@zsnap_GROUP_yyyy-mm-dd_HH:MM_tz"
       opts.separator "e. g."
       opts.separator "    tank@zsnap_daily_2000-12-25_14:35_0500"
+      opts.separator ""
+      opts.separator "The options -M, -H, -d, -w or -m are used to specify which snapshots should"
+      opts.separator "be destroyed by elapsed time. It is possible to combine those options,"
+      opts.separator "e. g. '-w 2 -H 12' would delete all snapshots which are older than two weeks"
+      opts.separator "and twelve hours. If none of those options are used, no snapshot will be"
+      opts.separator "destroyed. Furthermore only snapshots created by this script will be deleted,"
+      opts.separator "all other snapshots remain untouched."
+      opts.separator ""
+      opts.separator "The option -k is used to specify how many snapshots for each group should be"
+      opts.separator "kept. All remaining older snapshots are destroyed. The option -k is mutual"
+      opts.separator "exclusive to -M, -H, -d, -w and -m."
       opts.separator ""
       opts.separator "Note: This script is intended to be used in a cronjob. E. g. to make a"
       opts.separator "snapshot every full hour and keep the snapshots of the last two weeks,"
@@ -672,6 +681,10 @@ module ZSnap
       opts.separator ""
       opts.separator " - #{$0} -m 1 -w 2"
       opts.separator "   Destroy all snapshots which are older than one month and two weeks."
+      opts.separator ""
+      opts.separator " - #{$0} -g daily -k 24"
+      opts.separator "   Destroy all snapshots except the last 24 on the group 'daily' for all"
+      opts.separator "   volumes."
       opts.separator ""
     end
 
